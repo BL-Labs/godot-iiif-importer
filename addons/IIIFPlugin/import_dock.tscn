@@ -1,0 +1,56 @@
+[gd_scene load_steps=3 format=3 uid="uid://yt3pjpbsnlca"]
+
+[ext_resource type="Script" uid="uid://du2e2vdej245p" path="res://addons/IIIFPlugin/import_dock.gd" id="1_o1r1a"]
+[ext_resource type="Script" uid="uid://ciwyrse64c20y" path="res://addons/IIIFPlugin/IIIFImporter.gd" id="2_ussss"]
+
+[node name="IIIF 3D" type="Control"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("1_o1r1a")
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 2
+offset_right = 174.0
+offset_bottom = 23.0
+text = "IIIF Importer"
+
+[node name="Instructions" type="Label" parent="."]
+layout_mode = 2
+offset_left = 1.0
+offset_top = 61.0
+offset_right = 175.0
+offset_bottom = 84.0
+text = "Enter URL of manifest:"
+
+[node name="URLEntry" type="TextEdit" parent="."]
+layout_mode = 2
+offset_left = 7.0
+offset_top = 106.0
+offset_right = 324.0
+offset_bottom = 221.0
+size_flags_vertical = 3
+wrap_mode = 1
+autowrap_mode = 1
+
+[node name="Import Button" type="Button" parent="."]
+layout_mode = 2
+offset_left = 1.0
+offset_top = 239.0
+offset_right = 149.0
+offset_bottom = 270.0
+text = "Import"
+
+[node name="Error Alert" type="AcceptDialog" parent="."]
+title = "Import Error"
+dialog_autowrap = true
+
+[node name="HTTPRequest" type="HTTPRequest" parent="."]
+
+[node name="IIIFImporter" type="Node" parent="." node_paths=PackedStringArray("http_request")]
+script = ExtResource("2_ussss")
+http_request = NodePath("../HTTPRequest")
+metadata/_custom_type_script = ExtResource("2_ussss")
+
+[connection signal="pressed" from="Import Button" to="." method="_on_import_button_pressed"]
