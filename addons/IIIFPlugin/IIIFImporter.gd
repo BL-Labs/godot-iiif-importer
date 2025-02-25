@@ -179,7 +179,23 @@ func create_node_3d_root_from_scene(scene_meta : Dictionary) -> Node3D:
 	# Generate safe filename
 	scene_filename = "res://%s.tscn" % scene_meta["label"]["en"][0].validate_filename()
 	
+			
+	if "backgroundColor" in scene_meta:
+		create_world_environment_node(scene_meta["backgroundColor"])
 	return root_node
+
+
+# Sets background colour
+func create_world_environment_node(color : String) -> void:
+	print_debug("Adding background colour: " + color)
+	var world_env = WorldEnvironment.new()
+	var env = Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color.html(color)
+	world_env.environment = env
+	world_env.name = "Background"
+	root_node.add_child(world_env)
+	world_env.owner = root_node
 
 
 # Converts a download URL into an internal resource reference
