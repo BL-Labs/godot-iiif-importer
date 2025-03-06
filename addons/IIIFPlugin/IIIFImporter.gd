@@ -17,7 +17,7 @@ var scene_filename : String = ""
 # IIIF Manifest converted to dictionary
 var manifest : Dictionary = {}
 # Base node of a scene
-var root_node : Node = null
+var root_node : Node3D = null
 
 # File currrently being downloaded
 var current_download_url : String = ""
@@ -115,7 +115,7 @@ func import_assets_in_manifest(items : Array) -> void:
 	
 	
 # Recursive parser for "items" in IIIF manifest JSON
-func parse_items(parent_node : Node, items : Array) -> Node:	
+func parse_items(parent_node : Node3D, items : Array) -> Node3D:	
 	var child_node = null
 	# process manifest
 	for item in items:
@@ -127,12 +127,15 @@ func parse_items(parent_node : Node, items : Array) -> Node:
 			child_node = create_metadata_node(item)
 			parent_node.add_child(child_node)
 			child_node.owner = root_node
-			var model : Node = _get_imported_model(item["body"]["id"])		
+			var model : Node3D = _get_imported_model(item["body"]["id"])		
 			child_node.add_child(model)
 			model.owner = root_node
 		else:
 			# Just create an annotion node for now
 			child_node = create_metadata_node(item)
+			
+		# Add position
+		add_position_to_node(child_node, item)
 		
 		# Add this new node to the parent			
 		if parent_node != null and item["type"] != "Annotation":
@@ -152,15 +155,26 @@ func parse_items(parent_node : Node, items : Array) -> Node:
 
 
 # Create an IIIF metadata section to a Godot node and copy all metadata
-func create_metadata_node(item_meta : Dictionary) -> Node:
-	var meta_node = Node.new()
+func create_metadata_node(item_meta : Dictionary) -> Node3D:
+	# TODO switch to 2D if in a future 2d mode?
+	var meta_node = Node3D.new()
 	meta_node.name = "IIIF %s" % item_meta["type"]
 	add_meta_to_node(meta_node, item_meta)	
 	return meta_node
 
+func add_position_to_node(node : Node3D, meta : Dictionary) -> void:
+	if "target" in meta and "selector" in meta["target"]:
+
+		# TODO select position space based on object identified as source
+		for selector in meta["target"]["selector"]:
+			print_debug(selector)
+			if selector["type"] == "PointSelector":
+				print_debug("Positioning")
+				print_debug(Vector3(selector["x"], selector["y"], selector["z"]))
+				node.position = Vector3(selector["x"], selector["y"], selector["z"])
 
 # Converts IIIF metadata to Godot metatdata on a node
-func add_meta_to_node(node : Node, meta : Dictionary) -> void:
+func add_meta_to_node(node : Node3D, meta : Dictionary) -> void:
 	for key in meta:
 		if key in meta and key != "items":
 			node.set_meta("iiif_%s" % key, meta[key])	
@@ -215,6 +229,7 @@ func import_model(url : String) -> void:
 
 # Handles completed web request to download model from web
 func _on_model_downloaded(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
+	http_request.request_completed.disconnect(_on_model_downloaded)
 	# If there was an HTTP then signal it and stop
 	if (signal_if_alert_message(response_code)):
 		return
@@ -234,7 +249,7 @@ func _on_model_downloaded(result: int, response_code: int, headers: PackedString
 
 
 # Gets a model from the resources area		
-func _get_imported_model(url) -> Node:
+func _get_imported_model(url) -> Node3D:
 	# Import model as normal from resources
 	var model_scene = load(get_filename_from_url(url))	
 	if not model_scene:
