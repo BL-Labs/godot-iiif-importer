@@ -1,0 +1,51 @@
+[gd_scene load_steps=2 format=3 uid="uid://dtmsuifchr0fs"]
+
+[ext_resource type="PackedScene" uid="uid://c4jbydgqihfhx" path="res://IIIFModelImport/astronaut.glb" id="1_55d6s"]
+
+[node name="IIIF Manifest" type="Node"]
+metadata/ATcontext = "http://iiif.io/api/presentation/4/context.json"
+metadata/id = "https://example.org/iiif/3d/model_position.json"
+metadata/type = "Manifest"
+metadata/label = {
+"en": ["Single Positioned Model"]
+}
+metadata/summary = {
+"en": ["Viewer should render the model at (-1,0,1), and then viewer should add default lighting and camera"]
+}
+
+[node name="IIF Scene" type="Node3D" parent="."]
+metadata/id = "https://example.org/iiif/scene1/page/p1/1"
+metadata/type = "Scene"
+metadata/label = {
+"en": ["A Scene"]
+}
+
+[node name="IIF AnnotationPage" type="Node" parent="IIF Scene"]
+metadata/id = "https://example.org/iiif/scene1/page/p1/1"
+metadata/type = "AnnotationPage"
+
+[node name="IIF Annotation" type="Node3D" parent="IIF Scene/IIF AnnotationPage"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, 1)
+metadata/id = "https://example.org/iiif/3d/anno1"
+metadata/type = "Annotation"
+metadata/motivation = ["painting"]
+metadata/body = {
+"format": "model/gltf-binary",
+"id": "https://raw.githubusercontent.com/IIIF/3d/main/assets/astronaut/astronaut.glb",
+"type": "Model"
+}
+metadata/target = {
+"selector": [{
+"type": "PointSelector",
+"x": -1.0,
+"y": 0.0,
+"z": 1.0
+}],
+"source": [{
+"id": "https://example.org/iiif/scene1/page/p1/1",
+"type": "Scene"
+}],
+"type": "SpecificResource"
+}
+
+[node name="astronaut" type="Node3D" parent="IIF Scene/IIF AnnotationPage/IIF Annotation" instance=ExtResource("1_55d6s")]
