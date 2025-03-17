@@ -1,33 +1,32 @@
 # IIIF 3D Importer
 # By Liam Green-Hughes, British Library, 2025
 # Example imports:
-# https://github.com/IIIF/3d/blob/main/manifests/1_basic_model_in_scene/model_origin.json
 # https://raw.githubusercontent.com/IIIF/3d/refs/heads/main/manifests/1_basic_model_in_scene/model_origin.json
+# 3D: https://raw.githubusercontent.com/IIIF/3d/refs/heads/main/manifests/1_basic_model_in_scene/model_origin.json
+# 2D: https://iiif.io/api/cookbook/recipe/0001-mvm-image/ https://iiif.io/api/cookbook/recipe/0001-mvm-image/manifest.json
 
 @tool
 
 extends Node
 class_name IIIFImporter
 
-# Scene object being built
-var scene : PackedScene = null
 # Name of file as on disc (with .tscn)
-var scene_filename : String = ""
+var output_filename : String = ""
 
-# IIIF Manifest converted to dictionary
-var manifest : Dictionary = {}
 # Base node of a scene
-var root_node : Node3D = null
+var root_node : Node = null
 
 # File currrently being downloaded
 var current_download_url : String = ""
+# Type of file being downloaded, e.g. model, image
+var current_download_type : String = ""
 
 # var await_scanning : bool = false
-var models_to_download : int = 0
+var assets_to_download : int = 0
 
 # Variables changable in Inspector
 # In project folder name for imported resources
-@export var import_dir : String = "IIIFModelImport"
+@export var import_dir : String = "IIIFAssetImport"
 # Godot HTTPRequest object, must be assigned in editor
 @export var http_request : HTTPRequest = null
 
@@ -39,9 +38,9 @@ var iiif_json : Dictionary  = {}
 
 enum StatusFlag {
 	IDLE,
-	REQ_MODELS,
-	ALL_MODELS_REQ,
-	MODEL_DL_COMPLETE,
+	REQ_ASSETS,
+	ALL_ASSETS_REQ,
+	ASSETS_DL_COMPLETE,
 	SCANNING,
 	BUILD_SCENE
 }
@@ -70,99 +69,97 @@ func _ready():
 
 	
 # Parses an IIIF manifest file and tries to convert it to a Godot scene
-# Processing of the tree will be deferred while models are downloaded
+# Processing of the tree will be deferred while assets are downloaded
 func process_iiif_json(manifest_json : Dictionary) -> void:
 	# Copy Metadata
 	iiif_json = manifest_json
-	for key in manifest_json:
-		if(key != "items"):
-			manifest["iiif_manifest_%s" % key.validate_node_name()] = manifest_json[key]
-	change_status(StatusFlag.REQ_MODELS)
-	models_to_download = 0	
+	change_status(StatusFlag.REQ_ASSETS)
+	assets_to_download = 0	
 	# Recursive import
 	import_assets_in_manifest(manifest_json["items"])
-	change_status(StatusFlag.ALL_MODELS_REQ)
+	change_status(StatusFlag.ALL_ASSETS_REQ)
 
 
-# Called when models have been downloaded and tree can now be worked on
+func create_iiif_manifest_root_node() -> void:
+	root_node = Node.new()
+	root_node.name = "IIIF Manifest"
+	add_meta_to_node(root_node, iiif_json)
+	print_debug("Created Root Node")
+	
+
+# Called when assets have been downloaded and tree can now be worked on
 func resume_manifest_processing() -> void:
 	print_debug("Resuming parsing items")
-	parse_items(null,iiif_json["items"])
+	
+	# Create GODOT scene root		
+	create_iiif_manifest_root_node()
+	parse_items(root_node,iiif_json["items"])
+	# Save scene
+	save_godot_scene()
 	change_status(StatusFlag.IDLE)
+
+
+# Saves the output godot scene to disc
+func save_godot_scene() -> void:
+	var scene = PackedScene.new()
+	scene.pack(root_node)
+	ResourceSaver.save(scene, output_filename)
 
 
 # Godot function run on every frame
 # This will monitor the resource scanner
 func _process(delta : float) -> void:
-	if status == StatusFlag.MODEL_DL_COMPLETE:
+	if status == StatusFlag.ASSETS_DL_COMPLETE:
 		resource_fs.scan_sources()
 		change_status(StatusFlag.SCANNING)
 		return
 
-	if status == StatusFlag.SCANNING && !resource_fs.is_scanning():	
-		scanning_complete.emit()
+	if status == StatusFlag.SCANNING && !resource_fs.is_scanning():			
 		change_status(StatusFlag.BUILD_SCENE)
+		scanning_complete.emit()
 		return
 
 
-# Goes through manifest and looks for models to be downloaded		
+# Goes through manifest and looks for assets to be downloaded		
 func import_assets_in_manifest(items : Array) -> void:
 	for item in items:
 		if item["type"] == "Annotation":
-			import_model(item["body"]["id"])
+			import_asset(item["body"]["id"], item["body"]["type"])
 		if "items" in item:
 			import_assets_in_manifest(item["items"])
 	
 	
 # Recursive parser for "items" in IIIF manifest JSON
-func parse_items(parent_node : Node3D, items : Array) -> Node3D:	
-	var child_node = null
+func parse_items(parent_node : Node, items : Array) -> Node3D:	
+	var child_node : Node = null
 	# process manifest
 	for item in items:
 		# Act on specific kinds of nodes
 		if item["type"] == "Scene":
-			# TODO what happens with 2D?
-			child_node = create_node_3d_root_from_scene(item)
+			child_node = create_node3d(item)
 		elif item["type"] == "Annotation":
-			child_node = create_metadata_node(item)
-			parent_node.add_child(child_node)
-			child_node.owner = root_node
-			var model : Node3D = _get_imported_model(item["body"]["id"])		
-			child_node.add_child(model)
-			model.owner = root_node
+			child_node = create_annotation_node(item)
 		else:
-			# Just create an annotion node for now
-			child_node = create_metadata_node(item)
+			child_node = Node.new()
+		
+		# Common to all nodes
+		child_node.name = "IIF " + item["type"].validate_node_name()
+		add_meta_to_node(child_node, item)
+		parent_node.add_child(child_node)
+		child_node.owner = root_node
+		for subnode in child_node.get_children():
+			subnode.owner = root_node
 			
 		# Add position
 		add_position_to_node(child_node, item)
 		
-		# Add this new node to the parent			
-		if parent_node != null and item["type"] != "Annotation":
-			parent_node.add_child(child_node)
-			child_node.owner = root_node
-		
 		# Process this instance of items recursively	
 		if "items" in item:
 			child_node = parse_items(child_node, item["items"])
-		
-		# If we created a scene then we now need to save it	
-		if item["type"] == "Scene":
-			scene.pack(child_node)
-			ResourceSaver.save(scene, scene_filename)
 			
 	return parent_node
 
-
-# Create an IIIF metadata section to a Godot node and copy all metadata
-func create_metadata_node(item_meta : Dictionary) -> Node3D:
-	# TODO switch to 2D if in a future 2d mode?
-	var meta_node = Node3D.new()
-	meta_node.name = "IIIF %s" % item_meta["type"]
-	add_meta_to_node(meta_node, item_meta)	
-	return meta_node
-
-func add_position_to_node(node : Node3D, meta : Dictionary) -> void:
+func add_position_to_node(node : Node, meta : Dictionary) -> void:
 	if "target" in meta and "selector" in meta["target"]:
 
 		# TODO select position space based on object identified as source
@@ -170,37 +167,48 @@ func add_position_to_node(node : Node3D, meta : Dictionary) -> void:
 			print_debug(selector)
 			if selector["type"] == "PointSelector":
 				print_debug("Positioning")
-				print_debug(Vector3(selector["x"], selector["y"], selector["z"]))
-				node.position = Vector3(selector["x"], selector["y"], selector["z"])
+				if node is Node2D:
+					print_debug(Vector2(selector["x"], selector["y"]))
+					node.position = Vector2(selector["x"], selector["y"])
+				if node is Node3D:
+					print_debug(Vector3(selector["x"], selector["y"], selector["z"]))
+					node.position = Vector3(selector["x"], selector["y"], selector["z"])
+
 
 # Converts IIIF metadata to Godot metatdata on a node
-func add_meta_to_node(node : Node3D, meta : Dictionary) -> void:
+func add_meta_to_node(node : Node, meta : Dictionary) -> void:
 	for key in meta:
-		if key in meta and key != "items":
-			node.set_meta("iiif_%s" % key, meta[key])	
+		if key in meta and key != "items":			
+			node.set_meta(key.replace("@","AT").validate_node_name(), meta[key])	
 
 
 # Converts an IIIF meta scene to a Godot scene	
-func create_node_3d_root_from_scene(scene_meta : Dictionary) -> Node3D:
-	scene = PackedScene.new()
-	root_node = Node3D.new()
-	add_meta_to_node(root_node, scene_meta)
-	# Add in manifest data
-	for key in manifest:
-		root_node.set_meta(key, manifest[key])
-	# TODO multilingual support
-	root_node.name = scene_meta["label"]["en"][0].validate_node_name()
-	# Generate safe filename
-	scene_filename = "res://%s.tscn" % scene_meta["label"]["en"][0].validate_filename()
-	
+func create_node3d(scene_meta : Dictionary) -> Node3D:
+	var node = Node3D.new()
+	add_meta_to_node(node, scene_meta)	
 			
 	if "backgroundColor" in scene_meta:
-		create_world_environment_node(scene_meta["backgroundColor"])
-	return root_node
+		create_world_environment_node(node, scene_meta["backgroundColor"])
+	return node
+
+# Creates an IIIF annotation node which will hold an asset
+func create_annotation_node(item : Dictionary):
+	var node : Node = null
+	if item["body"]["type"] == "Model":
+		node = Node3D.new()
+		var asset : Node3D = _get_imported_asset(item["body"]["id"])		
+		node.add_child(asset)
+	elif item["body"]["type"] == "Image":
+		node = Node2D.new()
+		var asset : Sprite2D = _get_imported_image(item["body"]["id"])	
+		node.add_child(asset)
+	else:
+		node = Node.new()
+	return node
 
 
 # Sets background colour
-func create_world_environment_node(color : String) -> void:
+func create_world_environment_node(parent_node : Node3D, color : String) -> void:
 	print_debug("Adding background colour: " + color)
 	var world_env = WorldEnvironment.new()
 	var env = Environment.new()
@@ -208,55 +216,72 @@ func create_world_environment_node(color : String) -> void:
 	env.background_color = Color.html(color)
 	world_env.environment = env
 	world_env.name = "Background"
-	root_node.add_child(world_env)
-	world_env.owner = root_node
+	parent_node.add_child(world_env)
+	print_debug("Adding owner to world background")
 
+
+# Generates a filename for the Godot Scene from the manifest URL	
+func generate_output_filename(url : String) -> String:
+	return "res://" + url.get_file().replace(url.get_extension(), "tscn").validate_filename()
+	
 
 # Converts a download URL into an internal resource reference
 func get_filename_from_url(url : String) -> String:
 	return "res://%s/%s" % [import_dir, url.get_file()]
 	
 	
-# Imports a 3d model from the web
-func import_model(url : String) -> void:
+# Imports a 3d asset from the web
+func import_asset(url : String, type : String) -> void:
 	ensure_import_dir_exists()
 	print_debug("Downloading " + get_filename_from_url(url))
 	current_download_url = url
-	http_request.request_completed.connect(_on_model_downloaded)
+	current_download_type = type
+	if type != "Model":
+		http_request.set_download_file(get_filename_from_url(current_download_url))
+	http_request.request_completed.connect(_on_asset_downloaded)
 	http_request.request(url)
-	models_to_download = models_to_download + 1
+	assets_to_download = assets_to_download + 1
 
 
-# Handles completed web request to download model from web
-func _on_model_downloaded(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
-	http_request.request_completed.disconnect(_on_model_downloaded)
+# Handles completed web request to download asset from web
+func _on_asset_downloaded(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
+	http_request.request_completed.disconnect(_on_asset_downloaded)
+	http_request.set_download_file("")
 	# If there was an HTTP then signal it and stop
 	if (signal_if_alert_message(response_code)):
 		return
-	var gstate = GLTFState.new()
-	gstate.base_path = "res://IIIFModelImport/"
-	var gimporter = GLTFDocument.new()	
+		
+	# Extra handling for models
+	if current_download_type == "Model":
+		var gstate = GLTFState.new()
+		gstate.base_path = "res://IIIFAssetImport/"
+		var gimporter = GLTFDocument.new()	
+		var err = gimporter.append_from_buffer(body, "", gstate)
+		if err != OK:
+			print_debug("Error importing GLB: " + str(err))
+			return
+		gimporter.write_to_filesystem(gstate, get_filename_from_url(current_download_url) )
 	
-	var err = gimporter.append_from_buffer(body, "", gstate)
-
-	if err != OK:
-		print_debug("Error importing GLB: " + str(err))
-		return
-	gimporter.write_to_filesystem(gstate, get_filename_from_url(current_download_url) )
-	models_to_download = models_to_download - 1
-	if status == StatusFlag.ALL_MODELS_REQ && models_to_download == 0:
-		change_status(StatusFlag.MODEL_DL_COMPLETE)
+	assets_to_download = assets_to_download - 1
+	if status == StatusFlag.ALL_ASSETS_REQ && assets_to_download == 0:
+		change_status(StatusFlag.ASSETS_DL_COMPLETE)
 
 
-# Gets a model from the resources area		
-func _get_imported_model(url) -> Node3D:
-	# Import model as normal from resources
-	var model_scene = load(get_filename_from_url(url))	
-	if not model_scene:
-		print_debug("Failed to load the model.", url)
-	var model : Node3D = model_scene.instantiate()
-	return model
+# Gets a asset from the resources area		
+func _get_imported_asset(url) -> Node3D:
+	# Import asset as normal from resources
+	var asset_scene = load(get_filename_from_url(url))	
+	if not asset_scene:
+		print_debug("Failed to load the asset.", url)
+	var asset : Node3D = asset_scene.instantiate()
+	return asset
 
+# Load in an image as a sprite, needs a node2d parent
+func _get_imported_image(url) -> Sprite2D:
+	var sprite = Sprite2D.new()
+	sprite.name = url.get_file().replace("." + url.get_extension(), "")
+	sprite.texture = load(get_filename_from_url(url))
+	return sprite
 	
 # Makes sure the object import folder exists, if not, it creates it
 func ensure_import_dir_exists() -> bool:
@@ -304,11 +329,14 @@ func signal_if_alert_message(response_code) -> bool:
 		
 	return false
 	
-
+	
 # Get tje IIIF manifest from the web	
 func import_manifest_from_url(url) -> void:
 	http_request.request_completed.connect(_on_manifest_request_received)
 	http_request.request(url)
+	# Set up export filename
+	output_filename = generate_output_filename(url);
+	print_debug("Output filename: " + output_filename)
 
 
 # Called when manifest we request returns. This will process the results.
