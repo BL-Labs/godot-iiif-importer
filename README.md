@@ -1,8 +1,10 @@
 # godot-iiif-importer
  Experimental Godot Addon to import IIIF 3D manifests
 
-Extremely experimental IIIF importer for Godot 4.4 and above. It has only been tried with this manifest so far:
-https://github.com/IIIF/3d/blob/main/manifests/1_basic_model_in_scene/model_origin.json
+Extremely experimental IIIF importer for Godot 4.4 and above. It has only been tried with these manifests so far:
+3D: https://raw.githubusercontent.com/IIIF/3d/refs/heads/main/manifests/1_basic_model_in_scene/model_origin.json
+3D with background colour: https://raw.githubusercontent.com/IIIF/3d/refs/heads/main/manifests/1_basic_model_in_scene/model_origin_bgcolor.json
+2D: https://iiif.io/api/cookbook/recipe/0001-mvm-image/manifest.json
 
 ## Installation
 

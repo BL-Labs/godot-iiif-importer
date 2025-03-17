@@ -1,8 +1,9 @@
 # IIIF 3D Importer
 # By Liam Green-Hughes, British Library, 2025
 # Example imports:
-# https://github.com/IIIF/3d/blob/main/manifests/1_basic_asset_in_scene/model_origin.json
 # https://raw.githubusercontent.com/IIIF/3d/refs/heads/main/manifests/1_basic_model_in_scene/model_origin.json
+# 3D: https://raw.githubusercontent.com/IIIF/3d/refs/heads/main/manifests/1_basic_model_in_scene/model_origin.json
+# 2D: https://iiif.io/api/cookbook/recipe/0001-mvm-image/ https://iiif.io/api/cookbook/recipe/0001-mvm-image/manifest.json
 
 @tool
 
@@ -245,6 +246,7 @@ func import_asset(url : String, type : String) -> void:
 # Handles completed web request to download asset from web
 func _on_asset_downloaded(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
 	http_request.request_completed.disconnect(_on_asset_downloaded)
+	http_request.set_download_file("")
 	# If there was an HTTP then signal it and stop
 	if (signal_if_alert_message(response_code)):
 		return
