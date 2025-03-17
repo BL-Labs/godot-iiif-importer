@@ -15,7 +15,7 @@ data_*/
 mono_crash.*.json
 
 # Project Specific
-IIIFModelImport/*
+IIIFAssetImport/
 node_3d.tscn
 A Scene.tscn
 
