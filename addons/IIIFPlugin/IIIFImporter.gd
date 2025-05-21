@@ -21,7 +21,6 @@ var current_download_url : String = ""
 # Type of file being downloaded, e.g. model, image
 var current_download_type : String = ""
 
-# var await_scanning : bool = false
 var assets_to_download : int = 0
 
 # Variables changable in Inspector
@@ -124,7 +123,11 @@ func _process(delta : float) -> void:
 func import_assets_in_manifest(items : Array) -> void:
 	for item in items:
 		if item["type"] == "Annotation":
-			import_asset(item["body"]["id"], item["body"]["type"])
+			if "source" in item["body"]:
+				for source in item["body"]["source"]:
+					import_asset(source["id"], source["type"])
+			else:
+				import_asset(item["body"]["id"], item["body"]["type"])
 		if "items" in item:
 			import_assets_in_manifest(item["items"])
 	
@@ -153,6 +156,9 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 		# Add position
 		add_position_to_node(child_node, item)
 		
+		# Add rotation
+		add_rotation_to_node(child_node, item)
+		
 		# Process this instance of items recursively	
 		if "items" in item:
 			child_node = parse_items(child_node, item["items"])
@@ -174,6 +180,17 @@ func add_position_to_node(node : Node, meta : Dictionary) -> void:
 					print_debug(Vector3(selector["x"], selector["y"], selector["z"]))
 					node.position = Vector3(selector["x"], selector["y"], selector["z"])
 
+# Set rotation on a 3D model 
+func add_rotation_to_node(node : Node, meta : Dictionary) -> void:
+	if "body" in meta and "transform" in meta["body"]:
+		# TODO select position space based on object identified as source
+		for transform in meta["body"]["transform"]:
+			if transform["type"] == "RotateTransform":
+				print_debug("Rotating")
+				var rotation = Vector3(transform["x"], transform["y"], transform["z"])
+				if node is Node3D:
+					node.rotation = rotation
+					print_debug(rotation)
 
 # Converts IIIF metadata to Godot metatdata on a node
 func add_meta_to_node(node : Node, meta : Dictionary) -> void:
@@ -198,6 +215,12 @@ func create_annotation_node(item : Dictionary):
 		node = Node3D.new()
 		var asset : Node3D = _get_imported_asset(item["body"]["id"])		
 		node.add_child(asset)
+	elif "source" in item["body"]:
+		for source in item["body"]["source"]:
+			if source["type"] == "Model":
+				node = Node3D.new()
+				var asset : Node3D = _get_imported_asset(source["id"])	
+				node.add_child(asset)
 	elif item["body"]["type"] == "Image":
 		node = Node2D.new()
 		var asset : Sprite2D = _get_imported_image(item["body"]["id"])	
@@ -249,7 +272,8 @@ func _on_asset_downloaded(result: int, response_code: int, headers: PackedString
 	http_request.set_download_file("")
 	# If there was an HTTP then signal it and stop
 	if (signal_if_alert_message(response_code)):
-		return
+		print_debug(response_code)
+		#return
 		
 	# Extra handling for models
 	if current_download_type == "Model":
@@ -259,7 +283,7 @@ func _on_asset_downloaded(result: int, response_code: int, headers: PackedString
 		var err = gimporter.append_from_buffer(body, "", gstate)
 		if err != OK:
 			print_debug("Error importing GLB: " + str(err))
-			return
+			# return
 		gimporter.write_to_filesystem(gstate, get_filename_from_url(current_download_url) )
 	
 	assets_to_download = assets_to_download - 1
