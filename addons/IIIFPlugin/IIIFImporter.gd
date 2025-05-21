@@ -157,7 +157,7 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 		add_position_to_node(child_node, item)
 		
 		# Add rotation
-		add_rotation_to_node(child_node, item)
+		add_transform_to_node(child_node, item)
 		
 		# Process this instance of items recursively	
 		if "items" in item:
@@ -180,17 +180,28 @@ func add_position_to_node(node : Node, meta : Dictionary) -> void:
 					print_debug(Vector3(selector["x"], selector["y"], selector["z"]))
 					node.position = Vector3(selector["x"], selector["y"], selector["z"])
 
-# Set rotation on a 3D model 
-func add_rotation_to_node(node : Node, meta : Dictionary) -> void:
+# Set rotation and scaling on a 3D model 
+func add_transform_to_node(node : Node, meta : Dictionary) -> void:
 	if "body" in meta and "transform" in meta["body"]:
 		# TODO select position space based on object identified as source
 		for transform in meta["body"]["transform"]:
+			var xyz = Vector3(transform["x"], transform["y"], transform["z"])
 			if transform["type"] == "RotateTransform":
 				print_debug("Rotating")
-				var rotation = Vector3(transform["x"], transform["y"], transform["z"])
 				if node is Node3D:
-					node.rotation = rotation
-					print_debug(rotation)
+					node.rotation_order = EULER_ORDER_XYZ
+					node.rotation_degrees = xyz
+					print_debug(xyz)
+			elif transform["type"] == "ScaleTransform":
+				print_debug("Scaling")
+				if node is Node3D:
+					node.scale = xyz
+					print_debug(xyz)
+			elif transform["type"] == "TranslateTransform":
+				print_debug("Translate")
+				if node is Node3D:
+					node.translate(xyz) 
+					print_debug(xyz)
 
 # Converts IIIF metadata to Godot metatdata on a node
 func add_meta_to_node(node : Node, meta : Dictionary) -> void:
