@@ -21,7 +21,9 @@ var current_download_url : String = ""
 # Type of file being downloaded, e.g. model, image
 var current_download_type : String = ""
 
-var assets_to_download : int = 0
+# var assets_to_download : int = 0
+
+var asset_download_queue : Dictionary = {}
 
 # Variables changable in Inspector
 # In project folder name for imported resources
@@ -73,7 +75,8 @@ func process_iiif_json(manifest_json : Dictionary) -> void:
 	# Copy Metadata
 	iiif_json = manifest_json
 	change_status(StatusFlag.REQ_ASSETS)
-	assets_to_download = 0	
+	# assets_to_download = 0	
+	asset_download_queue = {}
 	# Recursive import
 	import_assets_in_manifest(manifest_json["items"])
 	change_status(StatusFlag.ALL_ASSETS_REQ)
@@ -108,16 +111,24 @@ func save_godot_scene() -> void:
 # Godot function run on every frame
 # This will monitor the resource scanner
 func _process(delta : float) -> void:
+	# When all downloads are complete the get Godot to scan the assets file
 	if status == StatusFlag.ASSETS_DL_COMPLETE:
 		resource_fs.scan_sources()
 		change_status(StatusFlag.SCANNING)
 		return
 
+	# Start building the scene once all of the assets have downloaded
 	if status == StatusFlag.SCANNING && !resource_fs.is_scanning():			
 		change_status(StatusFlag.BUILD_SCENE)
 		scanning_complete.emit()
 		return
-
+	
+	# Assets download one at a time. Detect an idle downloader 	
+	if current_download_url.is_empty() and not asset_download_queue.is_empty():
+		var url = asset_download_queue.keys()[0]
+		var type = asset_download_queue[url]
+		import_asset(url, type)
+		return
 
 # Goes through manifest and looks for assets to be downloaded		
 func import_assets_in_manifest(items : Array) -> void:
@@ -125,9 +136,9 @@ func import_assets_in_manifest(items : Array) -> void:
 		if item["type"] == "Annotation":
 			if "source" in item["body"]:
 				for source in item["body"]["source"]:
-					import_asset(source["id"], source["type"])
+					queue_asset_download(source["id"], source["type"])
 			else:
-				import_asset(item["body"]["id"], item["body"]["type"])
+				queue_asset_download(item["body"]["id"], item["body"]["type"])
 		if "items" in item:
 			import_assets_in_manifest(item["items"])
 	
@@ -263,7 +274,9 @@ func generate_output_filename(url : String) -> String:
 func get_filename_from_url(url : String) -> String:
 	return "res://%s/%s" % [import_dir, url.get_file()]
 	
-	
+func queue_asset_download(url : String, type : String) -> void:
+	asset_download_queue[url] = type
+
 # Imports a 3d asset from the web
 func import_asset(url : String, type : String) -> void:
 	ensure_import_dir_exists()
@@ -274,7 +287,7 @@ func import_asset(url : String, type : String) -> void:
 		http_request.set_download_file(get_filename_from_url(current_download_url))
 	http_request.request_completed.connect(_on_asset_downloaded)
 	http_request.request(url)
-	assets_to_download = assets_to_download + 1
+	#assets_to_download = assets_to_download + 1
 
 
 # Handles completed web request to download asset from web
@@ -297,8 +310,11 @@ func _on_asset_downloaded(result: int, response_code: int, headers: PackedString
 			# return
 		gimporter.write_to_filesystem(gstate, get_filename_from_url(current_download_url) )
 	
-	assets_to_download = assets_to_download - 1
-	if status == StatusFlag.ALL_ASSETS_REQ && assets_to_download == 0:
+	# assets_to_download = assets_to_download - 1
+	asset_download_queue.erase(current_download_url)
+	#if status == StatusFlag.ALL_ASSETS_REQ && assets_to_download == 0:
+	#	change_status(StatusFlag.ASSETS_DL_COMPLETE)
+	if status == StatusFlag.ALL_ASSETS_REQ && asset_download_queue.is_empty():
 		change_status(StatusFlag.ASSETS_DL_COMPLETE)
 
 
@@ -389,5 +405,5 @@ func _on_manifest_request_received(result: int, response_code: int, headers: Pac
 	if parse_result != OK:
 		alert_message.emit("Could not parse manifest.")
 		return
-
+		
 	process_iiif_json(json.data)
