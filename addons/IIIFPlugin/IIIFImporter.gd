@@ -7,7 +7,7 @@
 
 @tool
 
-extends Node
+extends IIIF
 class_name IIIFImporter
 
 # Name of file as on disc (with .tscn)
@@ -16,20 +16,15 @@ var output_filename : String = ""
 # Base node of a scene
 var root_node : Node = null
 
-# File currrently being downloaded
-var current_download_url : String = ""
-# Type of file being downloaded, e.g. model, image
-var current_download_type : String = ""
+# List of assets requested from the downloader but not received yet
+var awaiting_assets : Dictionary = {}
 
-# var assets_to_download : int = 0
-
-var asset_download_queue : Dictionary = {}
+var asset_file_locations : Dictionary = {}
 
 # Variables changable in Inspector
-# In project folder name for imported resources
-@export var import_dir : String = "IIIFAssetImport"
-# Godot HTTPRequest object, must be assigned in editor
-@export var http_request : HTTPRequest = null
+
+
+@export var asset_downloader : IIIFAssetDownloader  = null
 
 # A reference to the EditorFileSYstem, used for scanning
 var resource_fs : EditorFileSystem = null
@@ -39,11 +34,14 @@ var iiif_json : Dictionary  = {}
 
 enum StatusFlag {
 	IDLE,
+	REQ_MANIFEST,
+	MANIFEST_DL_COMPLETE,
 	REQ_ASSETS,
 	ALL_ASSETS_REQ,
 	ASSETS_DL_COMPLETE,
 	SCANNING,
-	BUILD_SCENE
+	BUILD_SCENE,
+	ERROR
 }
 
 # Current operation of import plugin
@@ -76,7 +74,7 @@ func process_iiif_json(manifest_json : Dictionary) -> void:
 	iiif_json = manifest_json
 	change_status(StatusFlag.REQ_ASSETS)
 	# assets_to_download = 0	
-	asset_download_queue = {}
+	asset_downloader.clear_queue()
 	# Recursive import
 	import_assets_in_manifest(manifest_json["items"])
 	change_status(StatusFlag.ALL_ASSETS_REQ)
@@ -124,11 +122,11 @@ func _process(delta : float) -> void:
 		return
 	
 	# Assets download one at a time. Detect an idle downloader 	
-	if current_download_url.is_empty() and not asset_download_queue.is_empty():
-		var url = asset_download_queue.keys()[0]
-		var type = asset_download_queue[url]
-		import_asset(url, type)
-		return
+	#if current_download_url.is_empty() and not asset_download_queue.is_empty():
+	#	var url = asset_download_queue.keys()[0]
+	#	var type = asset_download_queue[url]
+	#	import_asset(url, type)
+	#	return
 
 # Goes through manifest and looks for assets to be downloaded		
 func import_assets_in_manifest(items : Array) -> void:
@@ -136,9 +134,11 @@ func import_assets_in_manifest(items : Array) -> void:
 		if item["type"] == "Annotation":
 			if "source" in item["body"]:
 				for source in item["body"]["source"]:
-					queue_asset_download(source["id"], source["type"])
+					asset_downloader.queue_asset_download(source["id"], source["type"])
+					awaiting_assets[source["id"]] = source["type"]
 			else:
-				queue_asset_download(item["body"]["id"], item["body"]["type"])
+				asset_downloader.queue_asset_download(item["body"]["id"], item["body"]["type"])
+				awaiting_assets[item["body"]["id"]] = item["body"]["type"]
 		if "items" in item:
 			import_assets_in_manifest(item["items"])
 	
@@ -270,58 +270,10 @@ func generate_output_filename(url : String) -> String:
 	return "res://" + url.get_file().replace(url.get_extension(), "tscn").validate_filename()
 	
 
-# Converts a download URL into an internal resource reference
-func get_filename_from_url(url : String) -> String:
-	return "res://%s/%s" % [import_dir, url.get_file()]
-	
-func queue_asset_download(url : String, type : String) -> void:
-	asset_download_queue[url] = type
-
-# Imports a 3d asset from the web
-func import_asset(url : String, type : String) -> void:
-	ensure_import_dir_exists()
-	print_debug("Downloading " + get_filename_from_url(url))
-	current_download_url = url
-	current_download_type = type
-	if type != "Model":
-		http_request.set_download_file(get_filename_from_url(current_download_url))
-	http_request.request_completed.connect(_on_asset_downloaded)
-	http_request.request(url)
-	#assets_to_download = assets_to_download + 1
-
-
-# Handles completed web request to download asset from web
-func _on_asset_downloaded(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
-	http_request.request_completed.disconnect(_on_asset_downloaded)
-	http_request.set_download_file("")
-	# If there was an HTTP then signal it and stop
-	if (signal_if_alert_message(response_code)):
-		print_debug(response_code)
-		#return
-		
-	# Extra handling for models
-	if current_download_type == "Model":
-		var gstate = GLTFState.new()
-		gstate.base_path = "res://IIIFAssetImport/"
-		var gimporter = GLTFDocument.new()	
-		var err = gimporter.append_from_buffer(body, "", gstate)
-		if err != OK:
-			print_debug("Error importing GLB: " + str(err))
-			# return
-		gimporter.write_to_filesystem(gstate, get_filename_from_url(current_download_url) )
-	
-	# assets_to_download = assets_to_download - 1
-	asset_download_queue.erase(current_download_url)
-	#if status == StatusFlag.ALL_ASSETS_REQ && assets_to_download == 0:
-	#	change_status(StatusFlag.ASSETS_DL_COMPLETE)
-	if status == StatusFlag.ALL_ASSETS_REQ && asset_download_queue.is_empty():
-		change_status(StatusFlag.ASSETS_DL_COMPLETE)
-
-
 # Gets a asset from the resources area		
 func _get_imported_asset(url) -> Node3D:
 	# Import asset as normal from resources
-	var asset_scene = load(get_filename_from_url(url))	
+	var asset_scene = load(asset_file_locations[url])	
 	if not asset_scene:
 		print_debug("Failed to load the asset.", url)
 	var asset : Node3D = asset_scene.instantiate()
@@ -331,27 +283,10 @@ func _get_imported_asset(url) -> Node3D:
 func _get_imported_image(url) -> Sprite2D:
 	var sprite = Sprite2D.new()
 	sprite.name = url.get_file().replace("." + url.get_extension(), "")
-	sprite.texture = load(get_filename_from_url(url))
+	sprite.texture = load(asset_file_locations[url])
 	return sprite
 	
-# Makes sure the object import folder exists, if not, it creates it
-func ensure_import_dir_exists() -> bool:
-	var dir = DirAccess.open("res://")
-	
-	if not dir:
-		print_debug("Failed to access directory.")
-		return false
-		
-	if dir.dir_exists(import_dir):
-		return true
-		
-	# Try to create import dir
-	var result = dir.make_dir(import_dir)
-	if result != OK:
-		print_debug("Failed to create import directory: %s" % result)
-		return false
-	# Directory now exists	
-	return true
+
 
 
 # Quick check to see if a URL is valid at face value
@@ -363,47 +298,26 @@ func is_valid_url(raw_url) -> bool:
 	else:
 		return true
 
-
-# Emits a message corresponding with an HTTP error code
-func signal_if_alert_message(response_code) -> bool:
-	var err_msg : String = ""
-	if response_code == 401:
-		err_msg = "401 Not authorised."
-	elif response_code == 404:
-		err_msg = "404 Not Found."
-	elif response_code >= 400:
-		err_msg = "HTTP Error %s." % response_code
-	
-	if err_msg != "":
-		alert_message.emit("Could not import manifest. %s" % err_msg)
-		return true
-		
-	return false
-	
-	
 # Get tje IIIF manifest from the web	
 func import_manifest_from_url(url) -> void:
-	http_request.request_completed.connect(_on_manifest_request_received)
-	http_request.request(url)
-	# Set up export filename
+	asset_downloader.queue_asset_download(url, "Manifest")
 	output_filename = generate_output_filename(url);
-	print_debug("Output filename: " + output_filename)
+	print_debug("Output filename (for scene): " + output_filename)
+	change_status(StatusFlag.REQ_MANIFEST)
+
+func _on_iiif_asset_downloader_manifest_received(json: Dictionary) -> void:
+	change_status(StatusFlag.MANIFEST_DL_COMPLETE)
+	print_debug("Manifest received")
+	print_debug(json)
+	process_iiif_json(json)
 
 
-# Called when manifest we request returns. This will process the results.
-func _on_manifest_request_received(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
-	http_request.request_completed.disconnect(_on_manifest_request_received)
+func _on_iiif_asset_downloader_download_complete(url: String, type: String, file_location: String) -> void:
+	awaiting_assets.erase(url)
+	asset_file_locations[url] = file_location
+	if (awaiting_assets.is_empty()):
+		change_status(StatusFlag.ASSETS_DL_COMPLETE)
 
-	# If there was an HTTP then signal it and stop
-	if (signal_if_alert_message(response_code)):
-		return
-		# IF JSON THEN PARSE AS IMPORT, IF NOT THEN A MODEL
-	# Now see if it can be parsed
-	var json = JSON.new()
-	var parse_result = json.parse(body.get_string_from_utf8())
-	
-	if parse_result != OK:
-		alert_message.emit("Could not parse manifest.")
-		return
-		
-	process_iiif_json(json.data)
+func _on_iiif_asset_downloader_error_notification(error_message: String) -> void:
+	change_status(StatusFlag.ERROR)
+	print_debug(error_message)

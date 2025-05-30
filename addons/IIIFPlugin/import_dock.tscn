@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3 uid="uid://yt3pjpbsnlca"]
+[gd_scene load_steps=4 format=3 uid="uid://yt3pjpbsnlca"]
 
 [ext_resource type="Script" uid="uid://du2e2vdej245p" path="res://addons/IIIFPlugin/import_dock.gd" id="1_o1r1a"]
 [ext_resource type="Script" uid="uid://ciwyrse64c20y" path="res://addons/IIIFPlugin/IIIFImporter.gd" id="2_ussss"]
+[ext_resource type="Script" uid="uid://tcijtl2toomf" path="res://addons/IIIFPlugin/IIIFAssetDownloader.gd" id="3_rh10c"]
 
 [node name="IIIF 3D" type="Control"]
 layout_mode = 3
@@ -48,9 +49,18 @@ dialog_autowrap = true
 
 [node name="HTTPRequest" type="HTTPRequest" parent="."]
 
-[node name="IIIFImporter" type="Node" parent="." node_paths=PackedStringArray("http_request")]
+[node name="IIIFImporter" type="Node" parent="." node_paths=PackedStringArray("asset_downloader")]
 script = ExtResource("2_ussss")
+asset_downloader = NodePath("../IIIFAssetDownloader")
+metadata/_custom_type_script = "uid://ciwyrse64c20y"
+
+[node name="IIIFAssetDownloader" type="Node" parent="." node_paths=PackedStringArray("http_request")]
+script = ExtResource("3_rh10c")
 http_request = NodePath("../HTTPRequest")
-metadata/_custom_type_script = ExtResource("2_ussss")
+metadata/_custom_type_script = "uid://tcijtl2toomf"
 
 [connection signal="pressed" from="Import Button" to="." method="_on_import_button_pressed"]
+[connection signal="request_completed" from="HTTPRequest" to="IIIFAssetDownloader" method="on_asset_downloaded"]
+[connection signal="download_complete" from="IIIFAssetDownloader" to="IIIFImporter" method="_on_iiif_asset_downloader_download_complete"]
+[connection signal="error_notification" from="IIIFAssetDownloader" to="IIIFImporter" method="_on_iiif_asset_downloader_error_notification"]
+[connection signal="manifest_received" from="IIIFAssetDownloader" to="IIIFImporter" method="_on_iiif_asset_downloader_manifest_received"]
