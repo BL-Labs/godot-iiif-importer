@@ -1,10 +1,7 @@
 # godot-iiif-importer
  Experimental Godot Addon to import IIIF 3D manifests
 
-Extremely experimental IIIF importer for Godot 4.4 and above. It has only been tried with these manifests so far:
-3D: https://raw.githubusercontent.com/IIIF/3d/refs/heads/main/manifests/1_basic_model_in_scene/model_origin.json
-3D with background colour: https://raw.githubusercontent.com/IIIF/3d/refs/heads/main/manifests/1_basic_model_in_scene/model_origin_bgcolor.json
-2D: https://iiif.io/api/cookbook/recipe/0001-mvm-image/manifest.json
+Extremely experimental IIIF importer for Godot 4.4 and above. 
 
 ## Installation
 
@@ -30,6 +27,30 @@ So for this repository:
 ## Screenshot
 ![Godot runnning the plugin after an export with an astronaut model in the 3D workspace](screenshot.png)
 
+# Progress 
+
+Here is how the importer is doing with the example 3D manifests (thanks to [MorphoSource for this list idea](https://github.com/MorphoSource/Community/blob/master/IIIF4.md)! )
+
+| Manifest | Works? | 
+| :--- | :---: | 
+| 1. Basic model in scene | |
+| [Single Model](https://raw.githubusercontent.com/IIIF/3d/main/manifests/1_basic_model_in_scene/model_origin.json) | ✅ | 
+| [Single Model with background color](https://raw.githubusercontent.com/IIIF/3d/main/manifests/1_basic_model_in_scene/model_origin_bgcolor) |  ✅  | 
+| 4. Transform and position | |
+| [Single Positioned Model](https://raw.githubusercontent.com/IIIF/3d/main/manifests/4_transform_and_position/model_position.json) | ✅ | 
+| [Rotated Model](https://raw.githubusercontent.com/IIIF/3d/main/manifests/4_transform_and_position/model_transform_rotate_position.json) | ✅  | 
+| [Rotated Translated Model](https://raw.githubusercontent.com/IIIF/3d/main/manifests/4_transform_and_position/model_transform_rotate_translate_position.json) | ✅ | 
+| [Translated Rotated Model](https://raw.githubusercontent.com/IIIF/3d/main/manifests/4_transform_and_position/model_transform_translate_rotate_position.json) | ✅  | 
+| [Two Models with Scaling and Positioning](https://raw.githubusercontent.com/IIIF/3d/main/manifests/4_transform_and_position/model_transform_translate_scale_position.json) | ✅  |
+| [Two Models with Translation, Scaling, and Positioning](https://raw.githubusercontent.com/IIIF/3d/main/manifests/4_transform_and_position/model_transform_scale_position.json) | ✅ | 
+| [Two Models with Scaling, Translation, and Positioning](https://raw.githubusercontent.com/IIIF/3d/main/manifests/4_transform_and_position/model_transform_scale_translate_position.json) | ✅| 
+| [Two Models with Left-Right Mirroring and Positioning](https://raw.githubusercontent.com/IIIF/3d/main/manifests/4_transform_and_position/model_transform_negative_scale_position.json) | ✅ | 
+| [Whale Cranium and Mandible Positioned](https://raw.githubusercontent.com/IIIF/3d/main/manifests/4_transform_and_position/whale_cranium_and_mandible_position.json) |✅  | 
+| 9. Commenting Annotations | |
+| [Single Model with Comment Annotations](https://raw.githubusercontent.com/IIIF/3d/main/manifests//9_commenting_annotations/astronaut_comment.json) | ❌ |
+| 10. Content State | |
+| [Single Model with Comment Annotations and Custom Views Per Annotation](https://raw.githubusercontent.com/IIIF/3d/astronaut_comment_scope/manifests/10_content_state/astronaut_comment_scope.json) | ❌ | 
+| [Whale Cranium and Mandible with Manifest-Level Comment Annotations](https://raw.githubusercontent.com/IIIF/3d/main/manifests/10_content_state/whale_comment_scope_content_state.json) | ❌ |
 
 
 Have fun!
