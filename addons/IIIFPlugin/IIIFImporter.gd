@@ -141,7 +141,10 @@ func import_assets_in_manifest(items : Array) -> void:
 				awaiting_assets[item["body"]["id"]] = item["body"]["type"]
 		if "items" in item:
 			import_assets_in_manifest(item["items"])
-	
+
+func name_iiif_node(item : Dictionary) -> String:
+	var name = 	"IIIF " + item["type"] + " (" + item["id"].get_file() + ")"
+	return name.validate_node_name()
 	
 # Recursive parser for "items" in IIIF manifest JSON
 func parse_items(parent_node : Node, items : Array) -> Node3D:	
@@ -157,7 +160,7 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 			child_node = Node.new()
 		
 		# Common to all nodes
-		child_node.name = "IIF " + item["type"].validate_node_name()
+		child_node.name = name_iiif_node(item)
 		add_meta_to_node(child_node, item)
 		parent_node.add_child(child_node)
 		child_node.owner = root_node
@@ -298,8 +301,9 @@ func is_valid_url(raw_url) -> bool:
 	else:
 		return true
 
-# Get tje IIIF manifest from the web	
+# Get the IIIF manifest from the web	
 func import_manifest_from_url(url) -> void:
+	asset_downloader.clear_queue()
 	asset_downloader.queue_asset_download(url, "Manifest")
 	output_filename = generate_output_filename(url);
 	print_debug("Output filename (for scene): " + output_filename)
@@ -307,8 +311,6 @@ func import_manifest_from_url(url) -> void:
 
 func _on_iiif_asset_downloader_manifest_received(json: Dictionary) -> void:
 	change_status(StatusFlag.MANIFEST_DL_COMPLETE)
-	print_debug("Manifest received")
-	print_debug(json)
 	process_iiif_json(json)
 
 

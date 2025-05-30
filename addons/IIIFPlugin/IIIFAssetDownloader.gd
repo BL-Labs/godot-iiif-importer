@@ -29,6 +29,7 @@ var asset_download_queue : Dictionary = {}
 
 func clear_queue():
 	asset_download_queue = {}
+	current_download_url = ""
 	
 
 
@@ -91,9 +92,8 @@ func signal_if_alert_message(response_code, current_download_url) -> bool:
 	elif response_code >= 400:
 		err_msg = "HTTP Error %s." % response_code
 	
-	err_msg = err_msg + "  URL: %s" % current_download_url
-	
 	if err_msg != "":
+		err_msg = err_msg + "  URL: %s" % current_download_url
 		error_notification.emit("Could not import asset at " + current_download_url + " " + err_msg)
 		return true
 		

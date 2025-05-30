@@ -30,4 +30,6 @@ So for this repository:
 ## Screenshot
 ![Godot runnning the plugin after an export with an astronaut model in the 3D workspace](screenshot.png)
 
+
+
 Have fun!
