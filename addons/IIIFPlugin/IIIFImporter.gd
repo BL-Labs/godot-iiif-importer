@@ -135,6 +135,7 @@ func import_assets_in_manifest(items : Array) -> void:
 		if "items" in item:
 			import_assets_in_manifest(item["items"])	
 
+# Every node must have a unique name in Godot
 func name_iiif_node(item : Dictionary) -> String:
 	var name = 	"IIIF " + item["type"] + " (" + item["id"].get_slice("://", 1) + ")"
 	return name.validate_node_name()
@@ -246,11 +247,19 @@ func create_annotation_node(item : Dictionary):
 		else:
 			node = Node.new()
 		
-	if "commenting" in item["motivation"]:
-		if "bodyValue" in item:
+	if "commenting" in item["motivation"] and "bodyValue" in item:
+		if item["bodyValue"] is String:
 			node = Label3D.new()
 			node.text = item["bodyValue"]
-
+		elif item["bodyValue"] is Dictionary:
+			node = Node3D.new()
+			var child_node = Label3D.new()
+			child_node.name = name_iiif_node(item["bodyValue"])
+			add_meta_to_node(child_node, item["bodyValue"])
+			child_node.text = item["bodyValue"]["value"]		
+			node.add_child(child_node)
+		else:
+			print("Annotation bodyValue is of unknown type")
 	return node
 
 

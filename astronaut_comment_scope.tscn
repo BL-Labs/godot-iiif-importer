@@ -1,0 +1,350 @@
+[gd_scene load_steps=2 format=3 uid="uid://cvrl5xqut2pmw"]
+
+[ext_resource type="PackedScene" uid="uid://d02w15s102eec" path="res://IIIFAssetImport/astronaut.glb" id="1_n8or4"]
+
+[node name="IIIF Manifest" type="Node"]
+metadata/ATcontext = "http://iiif.io/api/presentation/4/context.json"
+metadata/id = "https://example.org/iiif/3d/astronaut_comment_scope.json"
+metadata/type = "Manifest"
+metadata/label = {
+"en": ["Single Model with Comment Annotations and Custom Views Per Annotation"]
+}
+metadata/summary = {
+"en": ["Viewer should render the model at the scene origin and two comment annotations, one targeting a point near the astronaut's glove and the other targeting a point near the astronaut's helmet. Each comment annotation has a specific camera position and view specified for it using content state scope for the annotation."]
+}
+
+[node name="IIIF Scene (example_org_iiif_scene1_page_p1_1)" type="Node3D" parent="."]
+metadata/id = "https://example.org/iiif/scene1/page/p1/1"
+metadata/type = "Scene"
+metadata/label = {
+"en": ["A Scene"]
+}
+metadata/annotations = [{
+"id": "https://example.org/iiif/scene1/page/p2/1",
+"items": [{
+"body": {
+"format": "text/plain",
+"id": "https://example.org/iiif/3d/anno2/bodies/glove",
+"language": "en",
+"type": "TextualBody",
+"value": "Glove"
+},
+"id": "https://example.org/iiif/3d/anno2",
+"motivation": ["commenting"],
+"target": {
+"id": "https://example.org/uuid/ab7f9b03-2c13-416c-85d8-13e4ef6d6a3b",
+"scope": {
+"id": "https://example.org/iiif/3d/anno2/scope1",
+"motivation": ["contentState"],
+"target": {
+"id": "https://example.org/iiif/scene1/page/p1/1",
+"items": [{
+"id": "https://example.org/iiif/scene1/page/p3/1",
+"items": [{
+"body": {
+"id": "https://example.org/iiif/3d/cameras/1",
+"label": {
+"en": ["Perspective Camera for Glove"]
+},
+"lookAt": {
+"id": "https://example.org/uuid/6799e7d1-89a1-4e76-bcb9-3c0c47065598",
+"type": "PointSelector",
+"x": 0.0,
+"y": 2.01085,
+"z": -0.012333
+},
+"type": "PerspectiveCamera"
+},
+"id": "https://example.org/iiif/3d/anno2/scope1/anno1",
+"motivation": ["painting"],
+"target": {
+"id": "https://example.org/uuid/48350b8f-be54-4a20-990e-80b596efbb36",
+"selector": [{
+"id": "https://example.org/uuid/1a0f1b38-2ab7-4603-bfc3-353e77f18c93",
+"type": "PointSelector",
+"x": 0.0,
+"y": 2.01085,
+"z": 9.11616
+}],
+"source": [{
+"id": "https://example.org/iiif/scene1/page/p1/1",
+"type": "Scene"
+}],
+"type": "SpecificResource"
+},
+"type": "Annotation"
+}],
+"type": "AnnotationPage"
+}],
+"type": "Scene"
+},
+"type": "Annotation"
+},
+"selector": [{
+"id": "https://example.org/uuid/bfa9c562-3480-4605-aa60-fff02a1d6716",
+"type": "PointSelector",
+"x": 1.075,
+"y": 1.894,
+"z": 0.204
+}],
+"source": [{
+"id": "https://example.org/iiif/scene1/page/p1/1",
+"type": "Scene"
+}],
+"type": "SpecificResource"
+},
+"type": "Annotation"
+}, {
+"bodyValue": {
+"format": "text/plain",
+"id": "https://example.org/iiif/3d/anno3/bodies/helmet",
+"language": "en",
+"type": "TextualBody",
+"value": "Helmet"
+},
+"id": "https://example.org/iiif/3d/anno3",
+"motivation": ["commenting"],
+"target": {
+"id": "https://example.org/uuid/8e6a68cd-a5be-4661-acc2-a373f2e749ae",
+"scope": {
+"id": "https://example.org/iiif/3d/anno3/scope1",
+"motivation": ["contentState"],
+"target": {
+"id": "https://example.org/iiif/scene1/page/p1/1",
+"items": [{
+"id": "https://example.org/iiif/scene1/page/p3/1",
+"items": [{
+"body": {
+"id": "https://example.org/iiif/3d/cameras/2",
+"label": {
+"en": ["Perspective Camera for Helmet"]
+},
+"lookAt": {
+"id": "https://example.org/uuid/80ace027-d43d-48f2-81dc-59bfed7b61cc",
+"type": "PointSelector",
+"x": 0.0,
+"y": 2.01085,
+"z": -0.012333
+},
+"type": "PerspectiveCamera"
+},
+"id": "https://example.org/iiif/3d/anno3/scope1/anno1",
+"motivation": ["painting"],
+"target": {
+"id": "https://example.org/uuid/ea4fcfb0-7341-48e3-a85d-d9c9f2bac5a0",
+"selector": [{
+"id": "https://example.org/uuid/fa64be77-e766-49f0-a89c-cf1a6b7f5869",
+"type": "PointSelector",
+"x": 0.0,
+"y": 2.01085,
+"z": 9.11616
+}],
+"source": [{
+"id": "https://example.org/iiif/scene1/page/p1/1",
+"type": "Scene"
+}],
+"type": "SpecificResource"
+},
+"type": "Annotation"
+}],
+"type": "AnnotationPage"
+}],
+"type": "Scene"
+},
+"type": "Annotation"
+},
+"selector": [{
+"id": "https://example.org/uuid/7f940815-62f7-4d99-99e9-2f2a1ba0e7c8",
+"type": "PointSelector",
+"x": 0.006,
+"y": 3.498,
+"z": 0.703
+}],
+"source": [{
+"id": "https://example.org/iiif/scene1/page/p1/1",
+"type": "Scene"
+}],
+"type": "SpecificResource"
+},
+"type": "Annotation"
+}],
+"type": "AnnotationPage"
+}]
+
+[node name="IIIF AnnotationPage (example_org_iiif_scene1_page_p1_1)" type="Node" parent="IIIF Scene (example_org_iiif_scene1_page_p1_1)"]
+metadata/id = "https://example.org/iiif/scene1/page/p1/1"
+metadata/type = "AnnotationPage"
+
+[node name="IIIF Annotation (example_org_iiif_3d_anno1)" type="Node3D" parent="IIIF Scene (example_org_iiif_scene1_page_p1_1)/IIIF AnnotationPage (example_org_iiif_scene1_page_p1_1)"]
+metadata/id = "https://example.org/iiif/3d/anno1"
+metadata/type = "Annotation"
+metadata/motivation = ["painting"]
+metadata/body = {
+"format": "model/gltf-binary",
+"id": "https://raw.githubusercontent.com/IIIF/3d/main/assets/astronaut/astronaut.glb",
+"type": "Model"
+}
+metadata/target = "https://example.org/iiif/scene1/page/p1/1"
+
+[node name="astronaut" type="Node3D" parent="IIIF Scene (example_org_iiif_scene1_page_p1_1)/IIIF AnnotationPage (example_org_iiif_scene1_page_p1_1)/IIIF Annotation (example_org_iiif_3d_anno1)" instance=ExtResource("1_n8or4")]
+
+[node name="IIIF AnnotationPage (example_org_iiif_scene1_page_p2_1)" type="Node" parent="IIIF Scene (example_org_iiif_scene1_page_p1_1)"]
+metadata/id = "https://example.org/iiif/scene1/page/p2/1"
+metadata/type = "AnnotationPage"
+
+[node name="IIIF Annotation (example_org_iiif_3d_anno2)" type="Node" parent="IIIF Scene (example_org_iiif_scene1_page_p1_1)/IIIF AnnotationPage (example_org_iiif_scene1_page_p2_1)"]
+metadata/id = "https://example.org/iiif/3d/anno2"
+metadata/type = "Annotation"
+metadata/motivation = ["commenting"]
+metadata/body = {
+"format": "text/plain",
+"id": "https://example.org/iiif/3d/anno2/bodies/glove",
+"language": "en",
+"type": "TextualBody",
+"value": "Glove"
+}
+metadata/target = {
+"id": "https://example.org/uuid/ab7f9b03-2c13-416c-85d8-13e4ef6d6a3b",
+"scope": {
+"id": "https://example.org/iiif/3d/anno2/scope1",
+"motivation": ["contentState"],
+"target": {
+"id": "https://example.org/iiif/scene1/page/p1/1",
+"items": [{
+"id": "https://example.org/iiif/scene1/page/p3/1",
+"items": [{
+"body": {
+"id": "https://example.org/iiif/3d/cameras/1",
+"label": {
+"en": ["Perspective Camera for Glove"]
+},
+"lookAt": {
+"id": "https://example.org/uuid/6799e7d1-89a1-4e76-bcb9-3c0c47065598",
+"type": "PointSelector",
+"x": 0.0,
+"y": 2.01085,
+"z": -0.012333
+},
+"type": "PerspectiveCamera"
+},
+"id": "https://example.org/iiif/3d/anno2/scope1/anno1",
+"motivation": ["painting"],
+"target": {
+"id": "https://example.org/uuid/48350b8f-be54-4a20-990e-80b596efbb36",
+"selector": [{
+"id": "https://example.org/uuid/1a0f1b38-2ab7-4603-bfc3-353e77f18c93",
+"type": "PointSelector",
+"x": 0.0,
+"y": 2.01085,
+"z": 9.11616
+}],
+"source": [{
+"id": "https://example.org/iiif/scene1/page/p1/1",
+"type": "Scene"
+}],
+"type": "SpecificResource"
+},
+"type": "Annotation"
+}],
+"type": "AnnotationPage"
+}],
+"type": "Scene"
+},
+"type": "Annotation"
+},
+"selector": [{
+"id": "https://example.org/uuid/bfa9c562-3480-4605-aa60-fff02a1d6716",
+"type": "PointSelector",
+"x": 1.075,
+"y": 1.894,
+"z": 0.204
+}],
+"source": [{
+"id": "https://example.org/iiif/scene1/page/p1/1",
+"type": "Scene"
+}],
+"type": "SpecificResource"
+}
+
+[node name="IIIF Annotation (example_org_iiif_3d_anno3)" type="Node3D" parent="IIIF Scene (example_org_iiif_scene1_page_p1_1)/IIIF AnnotationPage (example_org_iiif_scene1_page_p2_1)"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.006, 3.498, 0.703)
+metadata/id = "https://example.org/iiif/3d/anno3"
+metadata/type = "Annotation"
+metadata/motivation = ["commenting"]
+metadata/bodyValue = {
+"format": "text/plain",
+"id": "https://example.org/iiif/3d/anno3/bodies/helmet",
+"language": "en",
+"type": "TextualBody",
+"value": "Helmet"
+}
+metadata/target = {
+"id": "https://example.org/uuid/8e6a68cd-a5be-4661-acc2-a373f2e749ae",
+"scope": {
+"id": "https://example.org/iiif/3d/anno3/scope1",
+"motivation": ["contentState"],
+"target": {
+"id": "https://example.org/iiif/scene1/page/p1/1",
+"items": [{
+"id": "https://example.org/iiif/scene1/page/p3/1",
+"items": [{
+"body": {
+"id": "https://example.org/iiif/3d/cameras/2",
+"label": {
+"en": ["Perspective Camera for Helmet"]
+},
+"lookAt": {
+"id": "https://example.org/uuid/80ace027-d43d-48f2-81dc-59bfed7b61cc",
+"type": "PointSelector",
+"x": 0.0,
+"y": 2.01085,
+"z": -0.012333
+},
+"type": "PerspectiveCamera"
+},
+"id": "https://example.org/iiif/3d/anno3/scope1/anno1",
+"motivation": ["painting"],
+"target": {
+"id": "https://example.org/uuid/ea4fcfb0-7341-48e3-a85d-d9c9f2bac5a0",
+"selector": [{
+"id": "https://example.org/uuid/fa64be77-e766-49f0-a89c-cf1a6b7f5869",
+"type": "PointSelector",
+"x": 0.0,
+"y": 2.01085,
+"z": 9.11616
+}],
+"source": [{
+"id": "https://example.org/iiif/scene1/page/p1/1",
+"type": "Scene"
+}],
+"type": "SpecificResource"
+},
+"type": "Annotation"
+}],
+"type": "AnnotationPage"
+}],
+"type": "Scene"
+},
+"type": "Annotation"
+},
+"selector": [{
+"id": "https://example.org/uuid/7f940815-62f7-4d99-99e9-2f2a1ba0e7c8",
+"type": "PointSelector",
+"x": 0.006,
+"y": 3.498,
+"z": 0.703
+}],
+"source": [{
+"id": "https://example.org/iiif/scene1/page/p1/1",
+"type": "Scene"
+}],
+"type": "SpecificResource"
+}
+
+[node name="IIIF TextualBody (example_org_iiif_3d_anno3_bodies_helmet)" type="Label3D" parent="IIIF Scene (example_org_iiif_scene1_page_p1_1)/IIIF AnnotationPage (example_org_iiif_scene1_page_p2_1)/IIIF Annotation (example_org_iiif_3d_anno3)"]
+text = "Helmet"
+metadata/id = "https://example.org/iiif/3d/anno3/bodies/helmet"
+metadata/type = "TextualBody"
+metadata/value = "Helmet"
+metadata/language = "en"
+metadata/format = "text/plain"
