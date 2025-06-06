@@ -29,7 +29,7 @@ So for this repository:
 
 # Progress 
 
-Here is how the importer is doing with the example 3D manifests (thanks to [MorphoSource for this list idea](https://github.com/MorphoSource/Community/blob/master/IIIF4.md)! )
+Here is the progress so far on how the importer is doing with the example 3D manifests (thanks to [MorphoSource for this list idea](https://github.com/MorphoSource/Community/blob/master/IIIF4.md)! ):
 
 | Manifest | Works? | 
 | :--- | :---: | 

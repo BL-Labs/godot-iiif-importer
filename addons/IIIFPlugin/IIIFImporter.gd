@@ -120,13 +120,6 @@ func _process(delta : float) -> void:
 		change_status(StatusFlag.BUILD_SCENE)
 		scanning_complete.emit()
 		return
-	
-	# Assets download one at a time. Detect an idle downloader 	
-	#if current_download_url.is_empty() and not asset_download_queue.is_empty():
-	#	var url = asset_download_queue.keys()[0]
-	#	var type = asset_download_queue[url]
-	#	import_asset(url, type)
-	#	return
 
 # Goes through manifest and looks for assets to be downloaded		
 func import_assets_in_manifest(items : Array) -> void:
@@ -140,10 +133,10 @@ func import_assets_in_manifest(items : Array) -> void:
 				asset_downloader.queue_asset_download(item["body"]["id"], item["body"]["type"])
 				awaiting_assets[item["body"]["id"]] = item["body"]["type"]
 		if "items" in item:
-			import_assets_in_manifest(item["items"])
+			import_assets_in_manifest(item["items"])	
 
 func name_iiif_node(item : Dictionary) -> String:
-	var name = 	"IIIF " + item["type"] + " (" + item["id"].get_file() + ")"
+	var name = 	"IIIF " + item["type"] + " (" + item["id"].get_slice("://", 1) + ")"
 	return name.validate_node_name()
 	
 # Recursive parser for "items" in IIIF manifest JSON
@@ -176,22 +169,21 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 		# Process this instance of items recursively	
 		if "items" in item:
 			child_node = parse_items(child_node, item["items"])
-			
+		if "annotations" in item:
+			child_node = parse_items(child_node, item["annotations"])		
 	return parent_node
+		
 
 func add_position_to_node(node : Node, meta : Dictionary) -> void:
 	if "target" in meta and "selector" in meta["target"]:
 
 		# TODO select position space based on object identified as source
 		for selector in meta["target"]["selector"]:
-			print_debug(selector)
 			if selector["type"] == "PointSelector":
 				print_debug("Positioning")
 				if node is Node2D:
-					print_debug(Vector2(selector["x"], selector["y"]))
 					node.position = Vector2(selector["x"], selector["y"])
 				if node is Node3D:
-					print_debug(Vector3(selector["x"], selector["y"], selector["z"]))
 					node.position = Vector3(selector["x"], selector["y"], selector["z"])
 
 # Set rotation and scaling on a 3D model 
@@ -236,22 +228,29 @@ func create_node3d(scene_meta : Dictionary) -> Node3D:
 # Creates an IIIF annotation node which will hold an asset
 func create_annotation_node(item : Dictionary):
 	var node : Node = null
-	if item["body"]["type"] == "Model":
-		node = Node3D.new()
-		var asset : Node3D = _get_imported_asset(item["body"]["id"])		
-		node.add_child(asset)
-	elif "source" in item["body"]:
-		for source in item["body"]["source"]:
-			if source["type"] == "Model":
-				node = Node3D.new()
-				var asset : Node3D = _get_imported_asset(source["id"])	
-				node.add_child(asset)
-	elif item["body"]["type"] == "Image":
-		node = Node2D.new()
-		var asset : Sprite2D = _get_imported_image(item["body"]["id"])	
-		node.add_child(asset)
-	else:
-		node = Node.new()
+	if "body" in item:
+		if item["body"]["type"] == "Model":
+			node = Node3D.new()
+			var asset : Node3D = _get_imported_asset(item["body"]["id"])		
+			node.add_child(asset)
+		elif "source" in item["body"]:
+			for source in item["body"]["source"]:
+				if source["type"] == "Model":
+					node = Node3D.new()
+					var asset : Node3D = _get_imported_asset(source["id"])	
+					node.add_child(asset)
+		elif item["body"]["type"] == "Image":
+			node = Node2D.new()
+			var asset : Sprite2D = _get_imported_image(item["body"]["id"])	
+			node.add_child(asset)
+		else:
+			node = Node.new()
+		
+	if "commenting" in item["motivation"]:
+		if "bodyValue" in item:
+			node = Label3D.new()
+			node.text = item["bodyValue"]
+
 	return node
 
 
