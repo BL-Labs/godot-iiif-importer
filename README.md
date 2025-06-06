@@ -47,9 +47,9 @@ Here is the progress so far on how the importer is doing with the example 3D man
 | [Two Models with Left-Right Mirroring and Positioning](https://raw.githubusercontent.com/IIIF/3d/main/manifests/4_transform_and_position/model_transform_negative_scale_position.json) | ✅ | 
 | [Whale Cranium and Mandible Positioned](https://raw.githubusercontent.com/IIIF/3d/main/manifests/4_transform_and_position/whale_cranium_and_mandible_position.json) |✅  | 
 | 9. Commenting Annotations | |
-| [Single Model with Comment Annotations](https://raw.githubusercontent.com/IIIF/3d/main/manifests//9_commenting_annotations/astronaut_comment.json) | ❌ |
+| [Single Model with Comment Annotations](https://raw.githubusercontent.com/IIIF/3d/main/manifests//9_commenting_annotations/astronaut_comment.json) | ✅  |
 | 10. Content State | |
-| [Single Model with Comment Annotations and Custom Views Per Annotation](https://raw.githubusercontent.com/IIIF/3d/astronaut_comment_scope/manifests/10_content_state/astronaut_comment_scope.json) | ❌ | 
+| [Single Model with Comment Annotations and Custom Views Per Annotation](https://raw.githubusercontent.com/IIIF/3d/astronaut_comment_scope/manifests/10_content_state/astronaut_comment_scope.json) | 🟡  | 
 | [Whale Cranium and Mandible with Manifest-Level Comment Annotations](https://raw.githubusercontent.com/IIIF/3d/main/manifests/10_content_state/whale_comment_scope_content_state.json) | ❌ |
 
 
