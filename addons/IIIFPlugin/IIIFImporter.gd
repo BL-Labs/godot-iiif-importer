@@ -16,6 +16,9 @@ var output_filename : String = ""
 # Base node of a scene
 var root_node : Node = null
 
+# Reference to the World Environment node (if there is one)
+var world_env_node : WorldEnvironment = null
+
 # List of assets requested from the downloader but not received yet
 var awaiting_assets : Dictionary = {}
 
@@ -25,6 +28,7 @@ var asset_file_locations : Dictionary = {}
 
 
 @export var asset_downloader : IIIFAssetDownloader  = null
+@export var default_lighting_bake_mode : Light3D.BakeMode = Light3D.BakeMode.BAKE_STATIC
 
 # A reference to the EditorFileSYstem, used for scanning
 var resource_fs : EditorFileSystem = null
@@ -129,7 +133,7 @@ func import_assets_in_manifest(items : Array) -> void:
 				for source in item["body"]["source"]:
 					asset_downloader.queue_asset_download(source["id"], source["type"])
 					awaiting_assets[source["id"]] = source["type"]
-			else:
+			elif "format" in item["body"]:
 				asset_downloader.queue_asset_download(item["body"]["id"], item["body"]["type"])
 				awaiting_assets[item["body"]["id"]] = item["body"]["type"]
 		if "items" in item:
@@ -166,6 +170,9 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 		
 		# Add rotation
 		add_transform_to_node(child_node, item)
+		
+		# If lookAt set, find out target and rotate towards it
+		add_look_at_to_node(child_node, item)
 		
 		# Process this instance of items recursively	
 		if "items" in item:
@@ -210,6 +217,20 @@ func add_transform_to_node(node : Node, meta : Dictionary) -> void:
 					node.translate(xyz) 
 					print_debug(xyz)
 
+# Works out coordinates for a lookAT direction	
+func add_look_at_to_node(node, meta : Dictionary) -> void:
+	var point = Vector3(0,0,0)
+	if "body" in meta and "lookAt" in meta["body"]:
+		print_debug("Adding lookAt")
+		var lookAt = meta["body"]["lookAt"]
+		if lookAt["type"] == "PointSelector":
+			point = Vector3(lookAt["x"].to_float(), lookAt["y"].to_float(), lookAt["z"].to_float())
+		elif lookAt["type"] == "Annotation":
+			var target = find_node_by_id_and_type(lookAt["id"], lookAt["type"])
+			if target is Node3D:
+				point = target.position
+		node.look_at_from_position(node.position, point)
+	
 # Converts IIIF metadata to Godot metatdata on a node
 func add_meta_to_node(node : Node, meta : Dictionary) -> void:
 	for key in meta:
@@ -223,7 +244,7 @@ func create_node3d(scene_meta : Dictionary) -> Node3D:
 	add_meta_to_node(node, scene_meta)	
 			
 	if "backgroundColor" in scene_meta:
-		create_world_environment_node(node, scene_meta["backgroundColor"])
+		set_background_colour(scene_meta["backgroundColor"])
 	return node
 
 # Creates an IIIF annotation node which will hold an asset
@@ -244,6 +265,10 @@ func create_annotation_node(item : Dictionary):
 			node = Node2D.new()
 			var asset : Sprite2D = _get_imported_image(item["body"]["id"])	
 			node.add_child(asset)
+		elif item["body"]["type"].containsn("Light"):
+			node = Node3D.new()
+			var light = make_light_node(item["body"]) 
+			node.add_child(light)
 		else:
 			node = Node.new()
 		
@@ -262,20 +287,90 @@ func create_annotation_node(item : Dictionary):
 			print("Annotation bodyValue is of unknown type")
 	return node
 
-
-# Sets background colour
-func create_world_environment_node(parent_node : Node3D, color : String) -> void:
-	print_debug("Adding background colour: " + color)
-	var world_env = WorldEnvironment.new()
+# Set up lighting nodes
+func make_light_node(lightBodySection : Dictionary) -> Node:
+	var node : Node = null
+	if lightBodySection["type"] == "AmbientLight":
+		node = create_ambient_light_node(lightBodySection) 
+	elif lightBodySection["type"] == "DirectionalLight":
+		node = DirectionalLight3D.new()
+	elif lightBodySection["type"] == "PointLight":
+		node = OmniLight3D.new()
+	elif lightBodySection["type"] == "SpotLight":
+		node = SpotLight3D.new()
+	else:
+		print("Light is of an unknown type")
+		node = Node.new()
+	
+	# Common
+	
+	# Jump out if we made a default node or AmbientLight
+	if node is not Light3D:
+		return node
+		
+	node.name = name_iiif_node(lightBodySection)
+			
+	if "color" in lightBodySection:
+		node.light_color = Color(lightBodySection["color"])
+		
+	if "intensity" in lightBodySection:
+		if lightBodySection["unit"] == "relative":
+			node.light_energy = lightBodySection["unit"].to_float() * 256
+		elif lightBodySection["unit"] == "lumens":
+			node.light_intensity_lumens = lightBodySection["unit"].to_float()
+		elif lightBodySection["unit"] == "lux":
+			node.light_intensity_lux = lightBodySection["unit"].to_float()
+		else:
+			print("Unknown light intensity unit")
+	
+	# Set lights to be on bake mode by default as suitable for most use cases	
+	node.light_bake_mode = default_lighting_bake_mode
+		
+	return node
+	
+func create_world_environment_node() -> void:
+	# if no world environment yet, create one
+	world_env_node = WorldEnvironment.new()
 	var env = Environment.new()
+	world_env_node.environment = env
+	world_env_node.name = "WorldEnvironment"
+	root_node.add_child(world_env_node)
+	world_env_node.set_owner(root_node)
+	
+	
+func create_ambient_light_node(lightBodySection : Dictionary) -> Node3D:
+	if world_env_node == null:
+		create_world_environment_node()
+	print_debug("Adding Ambient Light: ")
+	var env = world_env_node.environment
+	env.background_mode = Environment.BG_COLOR
+	if "color" in lightBodySection:
+		env.ambient_light_color = Color(lightBodySection["color"])
+	if "value" in lightBodySection and lightBodySection["unit"] == "relative":
+		env.ambient_light_energy = lightBodySection["value"].to_float() * 256
+	world_env_node.environment = env
+	var node = Node3D.new()
+	node.name = "AmbientLight (See WorldEnvironment) (" + lightBodySection["id"] + ")"
+	return node
+			
+# Sets background colour
+func set_background_colour(color : String) -> void:
+	if world_env_node == null:
+		create_world_environment_node()
+	print_debug("Adding background colour: " + color)
+	var env = world_env_node.environment
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color.html(color)
-	world_env.environment = env
-	world_env.name = "Background"
-	parent_node.add_child(world_env)
-	print_debug("Adding owner to world background")
+	world_env_node.environment = env
 
-
+func find_node_by_id_and_type(id : String, type : String) -> Node:
+	var target : Node = null
+	for child in root_node.get_children():
+		if child.get_meta("id") == id and child.get_meta("type") == type:
+			target = child
+			break
+	return target
+	
 # Generates a filename for the Godot Scene from the manifest URL	
 func generate_output_filename(url : String) -> String:
 	return "res://" + url.get_file().replace(url.get_extension(), "tscn").validate_filename()
