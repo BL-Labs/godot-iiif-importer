@@ -52,7 +52,6 @@ dialog_autowrap = true
 [node name="IIIFImporter" type="Node" parent="." node_paths=PackedStringArray("asset_downloader")]
 script = ExtResource("2_ussss")
 asset_downloader = NodePath("../IIIFAssetDownloader")
-default_lighting_bake_mode = null
 metadata/_custom_type_script = "uid://ciwyrse64c20y"
 
 [node name="IIIFAssetDownloader" type="Node" parent="." node_paths=PackedStringArray("http_request")]
@@ -61,6 +60,7 @@ http_request = NodePath("../HTTPRequest")
 metadata/_custom_type_script = "uid://tcijtl2toomf"
 
 [node name="OptionsLabel" type="Label" parent="."]
+layout_mode = 0
 offset_left = 6.0
 offset_top = 320.0
 offset_right = 180.0
@@ -68,6 +68,7 @@ offset_bottom = 343.0
 text = "Options:"
 
 [node name="LightingModeLabel" type="Label" parent="."]
+layout_mode = 0
 offset_left = 3.0
 offset_top = 369.0
 offset_right = 177.0

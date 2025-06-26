@@ -16,6 +16,9 @@ var output_filename : String = ""
 # Base node of a scene
 var root_node : Node = null
 
+# Reference to first model in scene, if no cameras then we can point a default camera at it
+var first_model : Node3D = null
+
 # Reference to the World Environment node (if there is one)
 var world_env_node : WorldEnvironment = null
 
@@ -23,6 +26,8 @@ var world_env_node : WorldEnvironment = null
 var awaiting_assets : Dictionary = {}
 
 var asset_file_locations : Dictionary = {}
+
+var camera_found : bool = false
 
 # Variables changable in Inspector
 
@@ -84,11 +89,11 @@ func process_iiif_json(manifest_json : Dictionary) -> void:
 	change_status(StatusFlag.ALL_ASSETS_REQ)
 
 
-func create_iiif_manifest_root_node() -> void:
-	root_node = Node.new()
-	root_node.name = "IIIF Manifest"
-	add_meta_to_node(root_node, iiif_json)
-	print_debug("Created Root Node")
+#func create_iiif_manifest_root_node() -> void:
+#	root_node = Node.new()
+#	root_node.name = "IIIF Manifest"
+#	add_meta_to_node(root_node, iiif_json)
+#	print_debug("Created Root Node")
 	
 
 # Called when assets have been downloaded and tree can now be worked on
@@ -96,8 +101,13 @@ func resume_manifest_processing() -> void:
 	print_debug("Resuming parsing items")
 	
 	# Create GODOT scene root		
-	create_iiif_manifest_root_node()
-	parse_items(root_node,iiif_json["items"])
+	#create_iiif_manifest_root_node()
+	parse_items(null,[iiif_json])
+	
+	# Add a default camera if there is not one in the scene
+	if not camera_found:
+		add_default_camera(first_model)
+		
 	# Save scene
 	save_godot_scene()
 	change_status(StatusFlag.IDLE)
@@ -145,6 +155,7 @@ func name_iiif_node(item : Dictionary) -> String:
 	return name.validate_node_name()
 	
 # Recursive parser for "items" in IIIF manifest JSON
+# If parent_node is null then a root node will be created
 func parse_items(parent_node : Node, items : Array) -> Node3D:	
 	var child_node : Node = null
 	# process manifest
@@ -160,10 +171,15 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 		# Common to all nodes
 		child_node.name = name_iiif_node(item)
 		add_meta_to_node(child_node, item)
-		parent_node.add_child(child_node)
-		child_node.owner = root_node
-		for subnode in child_node.get_children():
-			subnode.owner = root_node
+		
+		# If parent node is null then we are creating the root node
+		if parent_node == null:
+			root_node = child_node	
+		else:
+			parent_node.add_child(child_node)
+			child_node.set_owner(root_node)
+			for subnode in child_node.get_children():
+				subnode.set_owner(root_node)
 			
 		# Add position
 		add_position_to_node(child_node, item)
@@ -178,7 +194,29 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 		if "items" in item:
 			child_node = parse_items(child_node, item["items"])
 		if "annotations" in item:
-			child_node = parse_items(child_node, item["annotations"])		
+			print_debug("******************* FOUND ANNOTATIONS")
+			child_node = parse_items(child_node, item["annotations"])	
+		
+		if 	"target" in item and item["target"] is Dictionary and item["target"]["type"] == "SpecificResource":
+			# ignore for now
+			pass
+		elif "target" in item and item["target"] is Dictionary:
+			var target_node : Node3D = Node3D.new()
+			target_node.name = name_iiif_node(item["target"])
+			add_meta_to_node(target_node, item["target"])
+			child_node.add_child(target_node)
+			target_node.set_owner(root_node)
+			if "items" in item["target"]:
+				parse_items(target_node, item["target"]["items"])
+			if "annotations" in item["target"]:
+				parse_items(target_node, item["target"]["annotations"])
+			if "scope" in item["target"]:
+				var scope_node : Node3D = Node3D.new()
+				scope_node.name = name_iiif_node(item["target"]["scope"])
+				add_meta_to_node(scope_node, item["target"]["scope"])
+				target_node.add_child(scope_node)
+				scope_node.set_owner(root_node)
+				parse_items(scope_node, [item["target"]["scope"]["target"]])		
 	return parent_node
 		
 
@@ -217,18 +255,29 @@ func add_transform_to_node(node : Node, meta : Dictionary) -> void:
 					node.translate(xyz) 
 					print_debug(xyz)
 
+func ensure_float(number : Variant) -> float:
+	if number is float:
+		return number
+	if number is String:
+		return number.to_float()
+	else:
+		return float(number)
+	
 # Works out coordinates for a lookAT direction	
 func add_look_at_to_node(node, meta : Dictionary) -> void:
 	var point = Vector3(0,0,0)
 	if "body" in meta and "lookAt" in meta["body"]:
-		print_debug("Adding lookAt")
 		var lookAt = meta["body"]["lookAt"]
 		if lookAt["type"] == "PointSelector":
-			point = Vector3(lookAt["x"].to_float(), lookAt["y"].to_float(), lookAt["z"].to_float())
+			point = Vector3(ensure_float(lookAt["x"]), ensure_float(lookAt["y"]), ensure_float(lookAt["z"]))
 		elif lookAt["type"] == "Annotation":
 			var target = find_node_by_id_and_type(lookAt["id"], lookAt["type"])
 			if target is Node3D:
 				point = target.position
+			if target == null:
+				print_debug("**** LOOKAT TARGET NOT FOUND *****")
+		print_debug("*** Adding lookAt")
+		print_debug(point)
 		node.look_at_from_position(node.position, point)
 	
 # Converts IIIF metadata to Godot metatdata on a node
@@ -238,55 +287,143 @@ func add_meta_to_node(node : Node, meta : Dictionary) -> void:
 			node.set_meta(key.replace("@","AT").validate_node_name(), meta[key])	
 
 
+func find_node(node : Node):
+	for child in node.get_children():
+		print_debug(child.name)
+		print_debug(child.get_meta("type"))
+		var target : Node = null
+		if child.get_meta("type") == "Model":
+			print_debug("FOUND MODEL")
+			target = child.get_parent()
+			break
+		else:
+			for grandchild in child.get_children():
+				target = find_node(grandchild)
+				if target != null:
+					break
+		return target
+
+# Adds a camera to the scene, which looks at the first model
+func add_default_camera(target : Node3D) -> void:	
+	if target == null:
+		print("Could not create a default camera as could not find a model to point it at.")
+		return
+
+	for child in target.get_children():
+		print_debug(child.name)
+		if child is MeshInstance3D:
+			var aabb : AABB = child.get_aabb()
+			var model_size = aabb.size
+			var model_centre : Vector3 = aabb.get_center()
+			var camera_position = Vector3(model_centre.x, model_centre.y, aabb.size.y)
+			var camera = Camera3D.new();
+			root_node.add_child(camera)
+			camera.set_owner(root_node)
+			camera.name = "Default Camera"
+			camera.position = camera_position
+			camera.look_at_from_position(camera_position, model_centre)
+			
 # Converts an IIIF meta scene to a Godot scene	
 func create_node3d(scene_meta : Dictionary) -> Node3D:
 	var node = Node3D.new()
 	add_meta_to_node(node, scene_meta)	
 			
-	if "backgroundColor" in scene_meta:
-		set_background_colour(scene_meta["backgroundColor"])
+	#if "backgroundColor" in scene_meta:
+	#	set_background_colour(scene_meta["backgroundColor"])
 	return node
 
+# Creates a child node with IIIF metadata for a model
+func create_model_node(id : String, body : Dictionary) -> Node3D:
+	var node = Node3D.new()
+	var asset : Node3D = _get_imported_asset(id)	
+	asset.name = name_iiif_node(body)
+	add_meta_to_node(asset, body)	
+	node.add_child(asset)
+	if first_model == null:
+		first_model = asset
+	return node
+	
+func create_comment_node(body : Variant) -> Node3D:
+	var node : Node3D = null
+	if body is String:
+		node = Label3D.new()
+		node.text = body
+	elif body is Dictionary:
+		node = Node3D.new()
+		var child_node = Label3D.new()
+		child_node.name = name_iiif_node(body)
+		add_meta_to_node(child_node, body)
+		child_node.text = body["value"]		
+		node.add_child(child_node)
+	else:
+		print("Annotation bodyValue is of unknown type")
+	return node
+	
 # Creates an IIIF annotation node which will hold an asset
 func create_annotation_node(item : Dictionary):
 	var node : Node = null
 	if "body" in item:
 		if item["body"]["type"] == "Model":
-			node = Node3D.new()
-			var asset : Node3D = _get_imported_asset(item["body"]["id"])		
-			node.add_child(asset)
+			node = create_model_node(item["body"]["id"], item["body"])
 		elif "source" in item["body"]:
 			for source in item["body"]["source"]:
 				if source["type"] == "Model":
-					node = Node3D.new()
-					var asset : Node3D = _get_imported_asset(source["id"])	
-					node.add_child(asset)
+					node = create_model_node(source["id"], item["body"])
 		elif item["body"]["type"] == "Image":
 			node = Node2D.new()
-			var asset : Sprite2D = _get_imported_image(item["body"]["id"])	
+			var asset : Sprite2D = _get_imported_image(item["body"]["id"])
+			add_meta_to_node(asset, item["body"])	
 			node.add_child(asset)
 		elif item["body"]["type"].containsn("Light"):
 			node = Node3D.new()
 			var light = make_light_node(item["body"]) 
+			add_meta_to_node(light, item["body"])
 			node.add_child(light)
+		elif item["body"]["type"].containsn("Camera"):
+			node = Node3D.new()
+			camera_found = true
+			var camera = make_camera_node(item["body"]) 
+			add_meta_to_node(camera, item["body"])
+			node.add_child(camera)
 		else:
 			node = Node.new()
+	
+	# var child_node : Node3D = Node3D.new()
+	# Annotations with comments
+	if "commenting" in item["motivation"]:
+		if "bodyValue" in item:
+			node = create_comment_node(item["bodyValue"])
+		if "body" in item:
+			node = create_comment_node(item["body"])
+			
 		
-	if "commenting" in item["motivation"] and "bodyValue" in item:
-		if item["bodyValue"] is String:
-			node = Label3D.new()
-			node.text = item["bodyValue"]
-		elif item["bodyValue"] is Dictionary:
-			node = Node3D.new()
-			var child_node = Label3D.new()
-			child_node.name = name_iiif_node(item["bodyValue"])
-			add_meta_to_node(child_node, item["bodyValue"])
-			child_node.text = item["bodyValue"]["value"]		
-			node.add_child(child_node)
-		else:
-			print("Annotation bodyValue is of unknown type")
 	return node
+	
+func prop_or_default(section : Dictionary, property_name : String, default_value : Variant) -> Variant:
+	if property_name in section:
+		return section[property_name]
+	return default_value
 
+func make_camera_node(cameraBodySection : Dictionary) -> Camera3D:
+	print_debug("*** MAKING CAMERA NODE ***")
+	var camera : Camera3D = Camera3D.new()
+	# Properties for camera
+	var fov : float = prop_or_default(cameraBodySection, "fov", 75.0) 
+	var near : float = prop_or_default(cameraBodySection, "near", 0.05)
+	var far : float = prop_or_default(cameraBodySection, "far", 4000)
+	var size : float = prop_or_default(cameraBodySection, "size", 1)
+	
+	if cameraBodySection["type"] == "PerspectiveCamera":
+		camera.set_perspective(fov, near, far)
+		
+	elif cameraBodySection["type"] == "OrthographicCamera":
+		camera.set_orthogonal(size, near, far)
+	
+	else:
+		print("Camera is of an unknown type")
+	camera.name = name_iiif_node(cameraBodySection)
+	return camera
+	
 # Set up lighting nodes
 func make_light_node(lightBodySection : Dictionary) -> Node:
 	var node : Node = null
@@ -363,12 +500,10 @@ func set_background_colour(color : String) -> void:
 	env.background_color = Color.html(color)
 	world_env_node.environment = env
 
+# FInd a node in the scene tree by id and type
 func find_node_by_id_and_type(id : String, type : String) -> Node:
-	var target : Node = null
-	for child in root_node.get_children():
-		if child.get_meta("id") == id and child.get_meta("type") == type:
-			target = child
-			break
+	var node_name : String = name_iiif_node({"id": id, "type": "Model"})
+	var target : Node = root_node.find_child(node_name, true, true)
 	return target
 	
 # Generates a filename for the Godot Scene from the manifest URL	
@@ -379,7 +514,7 @@ func generate_output_filename(url : String) -> String:
 # Gets a asset from the resources area		
 func _get_imported_asset(url) -> Node3D:
 	# Import asset as normal from resources
-	var asset_scene = load(asset_file_locations[url])	
+	var asset_scene : Resource = load(asset_file_locations[url])	
 	if not asset_scene:
 		print_debug("Failed to load the asset.", url)
 	var asset : Node3D = asset_scene.instantiate()
