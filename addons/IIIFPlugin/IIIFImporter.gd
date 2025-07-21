@@ -62,10 +62,7 @@ signal alert_message(err_msg : String)
 
 signal scanning_complete
 
-# Change current status of import plugin
-func change_status(new_status : StatusFlag):
-	status = new_status
-	print_debug("New status is now: ", StatusFlag.find_key(status))
+
 
 
 # Godot function run whan plugin starts
@@ -75,18 +72,9 @@ func _ready():
 	scanning_complete.connect(resume_manifest_processing)
 	change_status(StatusFlag.IDLE)
 
-	
-# Parses an IIIF manifest file and tries to convert it to a Godot scene
-# Processing of the tree will be deferred while assets are downloaded
-func process_iiif_json(manifest_json : Dictionary) -> void:
-	# Copy Metadata
-	iiif_json = manifest_json
-	change_status(StatusFlag.REQ_ASSETS)
-	# assets_to_download = 0	
-	asset_downloader.clear_queue()
-	# Recursive import
-	import_assets_in_manifest(manifest_json["items"])
-	change_status(StatusFlag.ALL_ASSETS_REQ)
+
+
+
 
 
 #func create_iiif_manifest_root_node() -> void:
@@ -96,28 +84,10 @@ func process_iiif_json(manifest_json : Dictionary) -> void:
 #	print_debug("Created Root Node")
 	
 
-# Called when assets have been downloaded and tree can now be worked on
-func resume_manifest_processing() -> void:
-	print_debug("Resuming parsing items")
-	
-	# Create GODOT scene root		
-	#create_iiif_manifest_root_node()
-	parse_items(null,[iiif_json])
-	
-	# Add a default camera if there is not one in the scene
-	if not camera_found:
-		add_default_camera(first_model)
-		
-	# Save scene
-	save_godot_scene()
-	change_status(StatusFlag.IDLE)
 
 
-# Saves the output godot scene to disc
-func save_godot_scene() -> void:
-	var scene = PackedScene.new()
-	scene.pack(root_node)
-	ResourceSaver.save(scene, output_filename)
+
+
 
 
 # Godot function run on every frame
@@ -135,6 +105,153 @@ func _process(delta : float) -> void:
 		scanning_complete.emit()
 		return
 
+
+#
+# ENTRY POINT FROM import_dock.gd
+#
+
+
+# Get the IIIF manifest from the web	
+func import_manifest_from_url(url) -> void:
+	asset_downloader.clear_queue()
+	asset_downloader.queue_asset_download(url, "Manifest")
+	output_filename = generate_output_filename(url);
+	print_debug("Output filename (for scene): " + output_filename)
+	change_status(StatusFlag.REQ_MANIFEST)
+
+#
+# UTILITY/HELPER CODE
+#
+# Change current status of import plugin
+func change_status(new_status : StatusFlag):
+	status = new_status
+	print_debug("New status is now: ", StatusFlag.find_key(status))
+
+# Every node must have a unique name in Godot
+func name_iiif_node(item : Dictionary) -> String:
+	var name = 	"IIIF " + item["type"]
+	if "id" in item:
+		name = name + " (" + item["id"].get_slice("://", 1) + ")"
+	return name.validate_node_name()
+	
+
+func ensure_float(number : Variant) -> float:
+	if number is float:
+		return number
+	if number is String:
+		return number.to_float()
+	else:
+		return float(number)
+
+# Quick check to see if a URL is valid at face value
+func is_valid_url(raw_url) -> bool:
+	var url = raw_url.strip_edges(true, true)
+	if (url == "" || url.left(4) != "http"):
+		print_debug("The URL %s is not valid." % url)
+		return false
+	else:
+		return true
+		
+#
+# SCENE HELPER FUNCTIONS
+#			
+func find_node(node : Node):
+	for child in node.get_children():
+		print_debug(child.name)
+		print_debug(child.get_meta("type"))
+		var target : Node = null
+		if child.get_meta("type") == "Model":
+			print_debug("FOUND MODEL")
+			target = child.get_parent()
+			break
+		else:
+			for grandchild in child.get_children():
+				target = find_node(grandchild)
+				if target != null:
+					break
+		return target
+
+# Adds a camera to the scene, which looks at the first model
+func add_default_camera(target : Node3D) -> void:	
+	if target == null:
+		print("Could not create a default camera as could not find a model to point it at.")
+		return
+
+	for child in target.get_children():
+		print_debug(child.name)
+		if child is MeshInstance3D:
+			var aabb : AABB = child.get_aabb()
+			var model_size = aabb.size
+			var model_centre : Vector3 = aabb.get_center()
+			var camera_position = Vector3(model_centre.x, model_centre.y, aabb.size.y)
+			var camera = Camera3D.new();
+			root_node.add_child(camera)
+			camera.set_owner(root_node)
+			camera.name = "Default Camera"
+			camera.position = camera_position
+			camera.look_at_from_position(camera_position, model_centre)
+
+# Converts IIIF metadata to Godot metatdata on a node
+func add_meta_to_node(node : Node, meta : Dictionary) -> void:
+	for key in meta:
+		if key in meta and key != "items":			
+			node.set_meta(key.replace("@","AT").validate_node_name(), meta[key])	
+
+# Generates a filename for the Godot Scene from the manifest URL	
+func generate_output_filename(url : String) -> String:
+	return "res://" + url.get_file().replace(url.get_extension(), "tscn").validate_filename()
+
+# Returns a default value for a dictionary property if it is missing	
+func prop_or_default(section : Dictionary, property_name : String, default_value : Variant) -> Variant:
+	if property_name in section:
+		return section[property_name]
+	return default_value
+
+# FInd a node in the scene tree by id and type
+func find_node_by_id_and_type(id : String, type : String) -> Node:
+	var node_name : String = name_iiif_node({"id": id, "type": "Model"})
+	var target : Node = root_node.find_child(node_name, true, true)
+	return target
+	
+
+# Gets a asset from the resources area		
+func _get_imported_asset(url) -> Node3D:
+	# Import asset as normal from resources
+	var asset_scene : Resource = load(asset_file_locations[url])	
+	if not asset_scene:
+		print_debug("Failed to load the asset.", url)
+	var asset : Node3D = asset_scene.instantiate()
+	return asset
+
+# Load in an image as a sprite, needs a node2d parent
+func _get_imported_image(url) -> Sprite2D:
+	var sprite = Sprite2D.new()
+	sprite.name = url.get_file().replace("." + url.get_extension(), "")
+	sprite.texture = load(asset_file_locations[url])
+	return sprite	
+
+# Saves the output godot scene to disc
+func save_godot_scene() -> void:
+	var scene = PackedScene.new()
+	scene.pack(root_node)
+	ResourceSaver.save(scene, output_filename)
+
+#
+# PRELOAD ASSETS
+#
+	
+# Parses an IIIF manifest file and tries to convert it to a Godot scene
+# Processing of the tree will be deferred while assets are downloaded
+func process_iiif_json(manifest_json : Dictionary) -> void:
+	# Copy Metadata
+	iiif_json = manifest_json
+	change_status(StatusFlag.REQ_ASSETS)
+	# assets_to_download = 0	
+	asset_downloader.clear_queue()
+	# Recursive import
+	import_assets_in_manifest(manifest_json["items"])
+	change_status(StatusFlag.ALL_ASSETS_REQ)
+
 # Goes through manifest and looks for assets to be downloaded		
 func import_assets_in_manifest(items : Array) -> void:
 	for item in items:
@@ -149,12 +266,45 @@ func import_assets_in_manifest(items : Array) -> void:
 		if "items" in item:
 			import_assets_in_manifest(item["items"])	
 
-# Every node must have a unique name in Godot
-func name_iiif_node(item : Dictionary) -> String:
-	var name = 	"IIIF " + item["type"]
-	if "id" in item:
-		name = name + " (" + item["id"].get_slice("://", 1) + ")"
-	return name.validate_node_name()
+func _on_iiif_asset_downloader_download_complete(url: String, type: String, file_location: String) -> void:
+	awaiting_assets.erase(url)
+	asset_file_locations[url] = file_location
+	if (awaiting_assets.is_empty()):
+		change_status(StatusFlag.ASSETS_DL_COMPLETE)
+
+func _on_iiif_asset_downloader_manifest_received(json: Dictionary) -> void:
+	change_status(StatusFlag.MANIFEST_DL_COMPLETE)
+	process_iiif_json(json)
+
+
+
+
+func _on_iiif_asset_downloader_error_notification(error_message: String) -> void:
+	change_status(StatusFlag.ERROR)
+	print_debug(error_message)
+				
+#
+# PARSE IIIF MANIFEST
+#
+
+# Called when assets have been downloaded and tree can now be worked on
+func resume_manifest_processing() -> void:
+	print_debug("Resuming parsing items")
+	
+	# Create GODOT scene root		
+	#create_iiif_manifest_root_node()
+	parse_items(null,[iiif_json])
+	
+	# Add a default camera if there is not one in the scene
+	if not camera_found:
+		add_default_camera(first_model)
+		
+	# Save scene
+	save_godot_scene()
+	change_status(StatusFlag.IDLE)
+	
+
+
 	
 # Recursive parser for "items" in IIIF manifest JSON
 # If parent_node is null then a root node will be created
@@ -258,13 +408,6 @@ func add_transform_to_node(node : Node, meta : Dictionary) -> void:
 					node.translate(xyz) 
 					print_debug(xyz)
 
-func ensure_float(number : Variant) -> float:
-	if number is float:
-		return number
-	if number is String:
-		return number.to_float()
-	else:
-		return float(number)
 	
 # Works out coordinates for a lookAT direction	
 func add_look_at_to_node(node, meta : Dictionary) -> void:
@@ -283,48 +426,7 @@ func add_look_at_to_node(node, meta : Dictionary) -> void:
 		print_debug(point)
 		node.look_at_from_position(node.position, point)
 	
-# Converts IIIF metadata to Godot metatdata on a node
-func add_meta_to_node(node : Node, meta : Dictionary) -> void:
-	for key in meta:
-		if key in meta and key != "items":			
-			node.set_meta(key.replace("@","AT").validate_node_name(), meta[key])	
 
-
-func find_node(node : Node):
-	for child in node.get_children():
-		print_debug(child.name)
-		print_debug(child.get_meta("type"))
-		var target : Node = null
-		if child.get_meta("type") == "Model":
-			print_debug("FOUND MODEL")
-			target = child.get_parent()
-			break
-		else:
-			for grandchild in child.get_children():
-				target = find_node(grandchild)
-				if target != null:
-					break
-		return target
-
-# Adds a camera to the scene, which looks at the first model
-func add_default_camera(target : Node3D) -> void:	
-	if target == null:
-		print("Could not create a default camera as could not find a model to point it at.")
-		return
-
-	for child in target.get_children():
-		print_debug(child.name)
-		if child is MeshInstance3D:
-			var aabb : AABB = child.get_aabb()
-			var model_size = aabb.size
-			var model_centre : Vector3 = aabb.get_center()
-			var camera_position = Vector3(model_centre.x, model_centre.y, aabb.size.y)
-			var camera = Camera3D.new();
-			root_node.add_child(camera)
-			camera.set_owner(root_node)
-			camera.name = "Default Camera"
-			camera.position = camera_position
-			camera.look_at_from_position(camera_position, model_centre)
 			
 # Converts an IIIF meta scene to a Godot scene	
 func create_node3d(scene_meta : Dictionary) -> Node3D:
@@ -402,10 +504,7 @@ func create_annotation_node(item : Dictionary):
 		
 	return node
 	
-func prop_or_default(section : Dictionary, property_name : String, default_value : Variant) -> Variant:
-	if property_name in section:
-		return section[property_name]
-	return default_value
+
 
 func make_camera_node(cameraBodySection : Dictionary) -> Camera3D:
 	print_debug("*** MAKING CAMERA NODE ***")
@@ -502,65 +601,3 @@ func set_background_colour(color : String) -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color.html(color)
 	world_env_node.environment = env
-
-# FInd a node in the scene tree by id and type
-func find_node_by_id_and_type(id : String, type : String) -> Node:
-	var node_name : String = name_iiif_node({"id": id, "type": "Model"})
-	var target : Node = root_node.find_child(node_name, true, true)
-	return target
-	
-# Generates a filename for the Godot Scene from the manifest URL	
-func generate_output_filename(url : String) -> String:
-	return "res://" + url.get_file().replace(url.get_extension(), "tscn").validate_filename()
-	
-
-# Gets a asset from the resources area		
-func _get_imported_asset(url) -> Node3D:
-	# Import asset as normal from resources
-	var asset_scene : Resource = load(asset_file_locations[url])	
-	if not asset_scene:
-		print_debug("Failed to load the asset.", url)
-	var asset : Node3D = asset_scene.instantiate()
-	return asset
-
-# Load in an image as a sprite, needs a node2d parent
-func _get_imported_image(url) -> Sprite2D:
-	var sprite = Sprite2D.new()
-	sprite.name = url.get_file().replace("." + url.get_extension(), "")
-	sprite.texture = load(asset_file_locations[url])
-	return sprite
-	
-
-
-
-# Quick check to see if a URL is valid at face value
-func is_valid_url(raw_url) -> bool:
-	var url = raw_url.strip_edges(true, true)
-	if (url == "" || url.left(4) != "http"):
-		print_debug("The URL %s is not valid." % url)
-		return false
-	else:
-		return true
-
-# Get the IIIF manifest from the web	
-func import_manifest_from_url(url) -> void:
-	asset_downloader.clear_queue()
-	asset_downloader.queue_asset_download(url, "Manifest")
-	output_filename = generate_output_filename(url);
-	print_debug("Output filename (for scene): " + output_filename)
-	change_status(StatusFlag.REQ_MANIFEST)
-
-func _on_iiif_asset_downloader_manifest_received(json: Dictionary) -> void:
-	change_status(StatusFlag.MANIFEST_DL_COMPLETE)
-	process_iiif_json(json)
-
-
-func _on_iiif_asset_downloader_download_complete(url: String, type: String, file_location: String) -> void:
-	awaiting_assets.erase(url)
-	asset_file_locations[url] = file_location
-	if (awaiting_assets.is_empty()):
-		change_status(StatusFlag.ASSETS_DL_COMPLETE)
-
-func _on_iiif_asset_downloader_error_notification(error_message: String) -> void:
-	change_status(StatusFlag.ERROR)
-	print_debug(error_message)
