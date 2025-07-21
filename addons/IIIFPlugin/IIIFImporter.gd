@@ -151,7 +151,9 @@ func import_assets_in_manifest(items : Array) -> void:
 
 # Every node must have a unique name in Godot
 func name_iiif_node(item : Dictionary) -> String:
-	var name = 	"IIIF " + item["type"] + " (" + item["id"].get_slice("://", 1) + ")"
+	var name = 	"IIIF " + item["type"]
+	if "id" in item:
+		name = name + " (" + item["id"].get_slice("://", 1) + ")"
 	return name.validate_node_name()
 	
 # Recursive parser for "items" in IIIF manifest JSON
@@ -197,9 +199,10 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 			print_debug("******************* FOUND ANNOTATIONS")
 			child_node = parse_items(child_node, item["annotations"])	
 		
-		if 	"target" in item and item["target"] is Dictionary and item["target"]["type"] == "SpecificResource":
-			# ignore for now
-			pass
+		# if 	"target" in item and item["target"] is Dictionary and item["target"]["type"] == "SpecificResource":
+		#	# ignore for now see line 375
+		#	print_debug("**** FOUND A SPECIFIC RESORURCE")
+			
 		elif "target" in item and item["target"] is Dictionary:
 			var target_node : Node3D = Node3D.new()
 			target_node.name = name_iiif_node(item["target"])
@@ -368,7 +371,7 @@ func create_annotation_node(item : Dictionary):
 		elif "source" in item["body"]:
 			for source in item["body"]["source"]:
 				if source["type"] == "Model":
-					node = create_model_node(source["id"], item["body"])
+					node = create_model_node(source["id"], source)
 		elif item["body"]["type"] == "Image":
 			node = Node2D.new()
 			var asset : Sprite2D = _get_imported_image(item["body"]["id"])
