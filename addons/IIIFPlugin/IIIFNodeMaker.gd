@@ -133,11 +133,7 @@ func create_annotation_node(item : Dictionary):
 	
 	# Annotations with comments
 	if "commenting" in item["motivation"]:
-		if "bodyValue" in item:
-			node = create_comment_node(item["bodyValue"])
-		if "body" in item:
-			node = create_comment_node(item["body"])
-			
+		node = create_comment_node(item)
 		
 	return node
 
@@ -299,16 +295,12 @@ func set_background_colour(color : String) -> void:
 	env.background_color = Color.html(color)
 	world_env_node.environment = env
 
-func create_comment_node(body : Variant) -> Node3D:
-	var node : Node3D = null
-	if body is String:
-		node = create_iiif_node(Label3D.new(), body)
-		node.text = body
-	elif body is Dictionary:
-		node = create_iiif_node(Node3D.new(), body)
-		var child_node = create_iiif_node(Label3D.new(), body)
-		child_node.text = body["value"]		
-		node.add_child(child_node)
+func create_comment_node(meta : Dictionary) -> Node3D:
+	var node = create_iiif_node(Label3D.new(), meta)
+	if "bodyValue" in meta:
+		node.text = meta["bodyValue"]
+	elif meta["body"] is Dictionary:
+		node.text = meta["body"]["value"]	
 	else:
 		print("Annotation bodyValue is of unknown type")
 	return node
