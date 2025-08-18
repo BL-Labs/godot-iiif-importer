@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3 uid="uid://yt3pjpbsnlca"]
+[gd_scene load_steps=5 format=3 uid="uid://yt3pjpbsnlca"]
 
 [ext_resource type="Script" uid="uid://du2e2vdej245p" path="res://addons/IIIFPlugin/import_dock.gd" id="1_o1r1a"]
 [ext_resource type="Script" uid="uid://ciwyrse64c20y" path="res://addons/IIIFPlugin/IIIFImporter.gd" id="2_ussss"]
 [ext_resource type="Script" uid="uid://tcijtl2toomf" path="res://addons/IIIFPlugin/IIIFAssetDownloader.gd" id="3_rh10c"]
+[ext_resource type="Script" uid="uid://bw3kclsrpfxp3" path="res://addons/IIIFPlugin/IIIFNodeMaker.gd" id="4_pbu86"]
 
 [node name="IIIF 3D" type="Control"]
 layout_mode = 3
@@ -49,9 +50,10 @@ dialog_autowrap = true
 
 [node name="HTTPRequest" type="HTTPRequest" parent="."]
 
-[node name="IIIFImporter" type="Node" parent="." node_paths=PackedStringArray("asset_downloader")]
+[node name="IIIFImporter" type="Node" parent="." node_paths=PackedStringArray("asset_downloader", "node_maker")]
 script = ExtResource("2_ussss")
 asset_downloader = NodePath("../IIIFAssetDownloader")
+node_maker = NodePath("../IIIFNodeMaker")
 metadata/_custom_type_script = "uid://ciwyrse64c20y"
 
 [node name="IIIFAssetDownloader" type="Node" parent="." node_paths=PackedStringArray("http_request")]
@@ -89,6 +91,10 @@ popup/item_1/text = "Static"
 popup/item_1/id = 1
 popup/item_2/text = "Dynamic"
 popup/item_2/id = 2
+
+[node name="IIIFNodeMaker" type="Node" parent="."]
+script = ExtResource("4_pbu86")
+metadata/_custom_type_script = "uid://bw3kclsrpfxp3"
 
 [connection signal="pressed" from="Import Button" to="." method="_on_import_button_pressed"]
 [connection signal="request_completed" from="HTTPRequest" to="IIIFAssetDownloader" method="on_asset_downloaded"]

@@ -15,10 +15,6 @@ config/tags=PackedStringArray("iiif")
 config/features=PackedStringArray("4.4", "Mobile")
 config/icon="res://icon.svg"
 
-[editor_plugins]
-
-enabled=PackedStringArray("res://addons/IIIFPlugin/plugin.cfg")
-
 [rendering]
 
 renderer/rendering_method="mobile"

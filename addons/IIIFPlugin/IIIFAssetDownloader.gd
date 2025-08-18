@@ -1,5 +1,5 @@
 @tool
-extends IIIF
+extends IIIFPluginInternal
 
 class_name IIIFAssetDownloader
 
