@@ -20,10 +20,6 @@ var world_env_node : WorldEnvironment = null
 
 # List of assets requested from the downloader but not received yet
 var awaiting_assets : Dictionary = {}
-
-
-var camera_found : bool = false
-
 # Variables changable in Inspector
 
 
@@ -100,23 +96,21 @@ func import_manifest_from_url(url) -> void:
 func change_status(new_status : StatusFlag):
 	status = new_status
 	print_debug("New status is now: ", StatusFlag.find_key(status))
+	# If status is idle, reset the node maker
+	if (new_status == StatusFlag.IDLE):
+		node_maker.reset()
 
-# Every node must have a unique name in Godot
-func name_iiif_node(item : Dictionary) -> String:
-	var name = 	"IIIF " + item["type"]
-	if "id" in item:
-		name = name + " (" + item["id"].get_slice("://", 1) + ")"
-	return name.validate_node_name()
+## Every node must have a unique name in Godot
+#func name_iiif_node(item : Dictionary) -> String:
+	#var name = 	"IIIF " + item["type"]
+	#if "id" in item:
+		#name = name + " (" + item["id"].get_slice("://", 1) + ")"
+	#return name.validate_node_name()
 	
-func ensure_float(number : Variant) -> float:
-	if number is float:
-		return number
-	if number is String:
-		return number.to_float()
-	else:
-		return float(number)
+
 
 # Quick check to see if a URL is valid at face value
+# used in import_dock.gd
 func is_valid_url(raw_url) -> bool:
 	var url = raw_url.strip_edges(true, true)
 	if (url == "" || url.left(4) != "http"):
@@ -128,41 +122,17 @@ func is_valid_url(raw_url) -> bool:
 #
 # SCENE HELPER FUNCTIONS
 #			
-func find_node(node : Node):
-	for child in node.get_children():
-		print_debug(child.name)
-		print_debug(child.get_meta("type"))
-		var target : Node = null
-		if child.get_meta("type") == "Model":
-			print_debug("FOUND MODEL")
-			target = child.get_parent()
-			break
-		else:
-			for grandchild in child.get_children():
-				target = find_node(grandchild)
-				if target != null:
-					break
-		return target
+
 
 # Converts IIIF metadata to Godot metatdata on a node
-func add_meta_to_node(node : Node, meta : Dictionary) -> void:
-	for key in meta:
-		if key in meta and key != "items":			
-			node.set_meta(key.replace("@","AT").validate_node_name(), meta[key])	
+#func add_meta_to_node(node : Node, meta : Dictionary) -> void:
+#	for key in meta:
+#		if key in meta and key != "items":			
+#			node.set_meta(key.replace("@","AT").validate_node_name(), meta[key])	
 
 # Generates a filename for the Godot Scene from the manifest URL	
 func generate_output_filename(url : String) -> String:
 	return "res://" + url.get_file().replace(url.get_extension(), "tscn").validate_filename()
-
-
-
-# FInd a node in the scene tree by id and type
-func find_node_by_id_and_type(id : String, type : String) -> Node:
-	var node_name : String = name_iiif_node({"id": id, "type": "Model"})
-	var target : Node = root_node.find_child(node_name, true, true)
-	return target
-	
-
 
 # Saves the output godot scene to disc
 func save_godot_scene() -> void:
@@ -231,6 +201,7 @@ func resume_manifest_processing() -> void:
 	
 	# Add a default camera if there is not one in the scene
 	if not node_maker.is_camera_created:
+		print_debug("Creating default camera")
 		node_maker.create_default_camera(root_node)
 		
 	# Save scene
@@ -249,16 +220,10 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 		elif item["type"] == "AnnotationPage":
 			child_node = node_maker.create_annotation_page(item)
 		elif item["type"] == "Annotation":
-			if item["body"]["type"].containsn("Camera"):
-				camera_found = true
 			child_node = node_maker.create_annotation_node(item)
 		else:
 			print_debug("** UNKNOWN NODE TYPE: " + item["type"])
 			child_node = Node.new()
-		
-		# Common to all nodes
-		#child_node.name = name_iiif_node(item)
-		#add_meta_to_node(child_node, item)
 		
 		parent_node.add_child(child_node)
 		child_node.set_owner(root_node)
@@ -266,13 +231,13 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 			subnode.set_owner(root_node)
 			
 		# Add position
-		add_position_to_node(child_node, item)
+		node_maker.add_position_to_node(child_node, item)
 		
 		# Add rotation
-		add_transform_to_node(child_node, item)
+		node_maker.add_transform_to_node(child_node, item)
 		
 		# If lookAt set, find out target and rotate towards it
-		add_look_at_to_node(child_node, item)
+		node_maker.add_look_at_to_node(child_node, item)
 		
 		# Process this instance of items recursively	
 		if "items" in item:
@@ -304,59 +269,6 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 				#parse_items(scope_node, [item["target"]["scope"]["target"]])		
 	return parent_node
 		
-
-func add_position_to_node(node : Node, meta : Dictionary) -> void:
-	if "target" in meta and "selector" in meta["target"]:
-
-		# TODO select position space based on object identified as source
-		for selector in meta["target"]["selector"]:
-			if selector["type"] == "PointSelector":
-				print_debug("Positioning")
-				if node is Node2D:
-					node.position = Vector2(selector["x"], selector["y"])
-				if node is Node3D:
-					node.position = Vector3(selector["x"], selector["y"], selector["z"])
-
-# Set rotation and scaling on a 3D model 
-func add_transform_to_node(node : Node, meta : Dictionary) -> void:
-	if "body" in meta and "transform" in meta["body"]:
-		# TODO select position space based on object identified as source
-		for transform in meta["body"]["transform"]:
-			var xyz = Vector3(transform["x"], transform["y"], transform["z"])
-			if transform["type"] == "RotateTransform":
-				print_debug("Rotating")
-				if node is Node3D:
-					node.rotation_order = EULER_ORDER_XYZ
-					node.rotation_degrees = xyz
-					print_debug(xyz)
-			elif transform["type"] == "ScaleTransform":
-				print_debug("Scaling")
-				if node is Node3D:
-					node.scale = xyz
-					print_debug(xyz)
-			elif transform["type"] == "TranslateTransform":
-				print_debug("Translate")
-				if node is Node3D:
-					node.translate(xyz) 
-					print_debug(xyz)
-
-	
-# Works out coordinates for a lookAT direction	
-func add_look_at_to_node(node, meta : Dictionary) -> void:
-	var point = Vector3(0,0,0)
-	if "body" in meta and "lookAt" in meta["body"]:
-		var lookAt = meta["body"]["lookAt"]
-		if lookAt["type"] == "PointSelector":
-			point = Vector3(ensure_float(lookAt["x"]), ensure_float(lookAt["y"]), ensure_float(lookAt["z"]))
-		elif lookAt["type"] == "Annotation":
-			var target = find_node_by_id_and_type(lookAt["id"], lookAt["type"])
-			if target is Node3D:
-				point = target.position
-			if target == null:
-				print_debug("**** LOOKAT TARGET NOT FOUND *****")
-		print_debug("*** Adding lookAt")
-		print_debug(point)
-		node.look_at_from_position(node.position, point)
 
 
 	
