@@ -86,7 +86,7 @@ func import_manifest_from_url(url) -> void:
 	asset_downloader.clear_queue()
 	asset_downloader.queue_asset_download(url, "Manifest")
 	output_filename = generate_output_filename(url);
-	print_debug("Output filename (for scene): " + output_filename)
+	print_debug("[info] Output filename (for scene): " + output_filename)
 	change_status(StatusFlag.REQ_MANIFEST)
 
 #
@@ -95,7 +95,7 @@ func import_manifest_from_url(url) -> void:
 # Change current status of import plugin
 func change_status(new_status : StatusFlag):
 	status = new_status
-	print_debug("New status is now: ", StatusFlag.find_key(status))
+	print_debug("[Info] New status is now: ", StatusFlag.find_key(status))
 	# If status is idle, reset the node maker
 	if (new_status == StatusFlag.IDLE):
 		node_maker.reset()
@@ -114,7 +114,7 @@ func change_status(new_status : StatusFlag):
 func is_valid_url(raw_url) -> bool:
 	var url = raw_url.strip_edges(true, true)
 	if (url == "" || url.left(4) != "http"):
-		print_debug("The URL %s is not valid." % url)
+		print_debug("[Error] The URL %s is not valid." % url)
 		return false
 	else:
 		return true
@@ -162,14 +162,18 @@ func import_assets_in_manifest(items : Array) -> void:
 		if item["type"] == "Annotation":
 			if "source" in item["body"]:
 				for source in item["body"]["source"]:
-					asset_downloader.queue_asset_download(source["id"], source["type"])
-					awaiting_assets[source["id"]] = source["type"]
+					add_asset(source["id"], source["type"])
 			elif "format" in item["body"]:
-				asset_downloader.queue_asset_download(item["body"]["id"], item["body"]["type"])
-				awaiting_assets[item["body"]["id"]] = item["body"]["type"]
+				add_asset(item["body"]["id"], item["body"]["type"])
 		if "items" in item:
 			import_assets_in_manifest(item["items"])	
 
+func add_asset(id : String, type : String):
+	if type not in ["Model", "Image", "Manifest"]:
+		return
+	asset_downloader.queue_asset_download(id, type)
+	awaiting_assets[id] = type
+					
 func _on_iiif_asset_downloader_download_complete(url: String, type: String, file_location: String) -> void:
 	awaiting_assets.erase(url)
 	node_maker.set_asset_file_location(url, file_location)
@@ -190,18 +194,21 @@ func _on_iiif_asset_downloader_error_notification(error_message: String) -> void
 
 # Called when assets have been downloaded and tree can now be worked on
 func resume_manifest_processing() -> void:
-	print_debug("Resuming parsing items")
+	print_debug("[Info] Resuming parsing items")
 	
 	# Create GODOT scene root/manifest root
 	root_node = node_maker.create_manifest(iiif_json)
 	node_maker.default_lighting_bake_mode = default_lighting_bake_mode
 	node_maker.world_env_node = world_env_node
 	
-	parse_items(root_node,iiif_json["items"])
+	if "items" in iiif_json:
+		parse_items(root_node,iiif_json["items"])
+	if "annotations" in iiif_json:
+		parse_items(root_node,iiif_json["annotations"])
 	
 	# Add a default camera if there is not one in the scene
 	if not node_maker.is_camera_created:
-		print_debug("Creating default camera")
+		print_debug("[Info] Creating default camera")
 		node_maker.create_default_camera(root_node)
 		
 	# Save scene
@@ -221,11 +228,26 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 			child_node = node_maker.create_annotation_page(item)
 		elif item["type"] == "Annotation":
 			child_node = node_maker.create_annotation_node(item)
+		elif item["type"] == "Choice":
+			child_node = node_maker.create_choice(item)
+		elif item["type"] == "SpecificResource":
+			child_node = node_maker.create_specific_resource(item)
 		else:
-			print_debug("** UNKNOWN NODE TYPE: " + item["type"])
+			print_debug("[Error] Unknown node type: " + item["type"])
 			child_node = Node.new()
 		
-		parent_node.add_child(child_node)
+		# If a selector, find the right node to attach to
+		if item["type"] == "SpecificResource":
+			var target = node_maker.find_node_by_id_and_type(item["source"][0]["id"], item["source"][0]["type"])
+			if target != null:
+				print_debug("SpecificResource, target found")
+				target.add_child(child_node)
+			else:
+				print_debug("SpecificResource, no target found")
+				parent_node.add_child(child_node)
+		else:
+			# otherwise add to parent
+			parent_node.add_child(child_node)
 		child_node.set_owner(root_node)
 		for subnode in child_node.get_children():
 			subnode.set_owner(root_node)
@@ -243,8 +265,12 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 		if "items" in item:
 			child_node = parse_items(child_node, item["items"])
 		if "annotations" in item:
-			print_debug("******************* FOUND ANNOTATIONS")
 			child_node = parse_items(child_node, item["annotations"])	
+		if "target" in item:
+			child_node = parse_items(child_node, [item["target"]])	
+		# Not sure if this should be here
+		if "scope" in item:
+			child_node = parse_items(child_node, [item["scope"]])	
 		
 		# if 	"target" in item and item["target"] is Dictionary and item["target"]["type"] == "SpecificResource":
 		#	# ignore for now see line 375

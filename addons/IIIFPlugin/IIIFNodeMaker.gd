@@ -60,8 +60,8 @@ func ensure_float(number : Variant) -> float:
 
 # Find a node in the scene tree by id and type
 func find_node_by_id_and_type(id : String, type : String) -> Node:
-	var node_name : String = name_iiif_node({"id": id, "type": "Model"})
-	var target : Node = root_node.find_child(node_name, true, true)
+	var node_name : String = name_iiif_node({"id": id, "type": type})
+	var target : Node = root_node.find_child(node_name, true, false)
 	return target
 	
 	
@@ -104,6 +104,16 @@ func create_scene(meta : Dictionary) -> Node3D:
 		set_background_colour(meta["backgroundColor"])
 	return node
 
+# Creates a Choice node
+func create_choice(meta : Dictionary) -> Node:
+	var node = create_iiif_node(Node.new(), meta)
+	return node
+
+# Creates a Choice node
+func create_specific_resource(meta : Dictionary) -> Node:
+	var node = create_iiif_node(Node.new(), meta)
+	return node
+		
 #
 # ANNOTATIONS
 #
@@ -122,6 +132,8 @@ func create_annotation_node(item : Dictionary):
 			for source in item["body"]["source"]:
 				if source["type"] == "Model":
 					node.add_child(create_model_node(source["id"], source))
+				elif source["type"].containsn("Light"):
+					node.add_child(create_light_node(source))
 		#elif item["body"]["type"] == "Image":
 		#	var asset : Sprite2D = _get_imported_image(item["body"]["id"])
 		#	add_meta_to_node(asset, item["body"])	
@@ -153,7 +165,7 @@ func _get_imported_asset(url) -> Node3D:
 	# Import asset as normal from resources
 	var asset_scene : Resource = load(asset_file_locations[url])	
 	if not asset_scene:
-		print_debug("Failed to load the asset.", url)
+		print_debug("[Error] Failed to load the asset.", url)
 	var asset : Node3D = asset_scene.instantiate()
 	return asset
 
@@ -195,7 +207,7 @@ func create_camera_looking_at(root : Node, target : Node3D) -> void:
 
 
 func create_camera_node(cameraBodySection : Dictionary) -> Camera3D:
-	print_debug("*** MAKING CAMERA NODE ***")
+	print_debug("[Info] Making Camera Node")
 	var camera : Camera3D = create_iiif_node(Camera3D.new(), cameraBodySection)
 	# Properties for camera
 	var fov : float = prop_or_default(cameraBodySection, "fov", 75.0) 
@@ -219,6 +231,7 @@ func create_camera_node(cameraBodySection : Dictionary) -> Camera3D:
 
 # Set up lighting nodes
 func create_light_node(lightBodySection : Dictionary) -> Node:
+	print_debug("[Info] Creating light node")
 	var node : Node = null
 	if lightBodySection["type"] == "AmbientLight":
 		node = create_ambient_light_node(lightBodySection) 
@@ -273,7 +286,7 @@ func create_world_environment_node() -> WorldEnvironment:
 func create_ambient_light_node(meta : Dictionary) -> Node3D:
 	if world_env_node == null:
 		create_world_environment_node()
-	print_debug("Adding Ambient Light: ")
+	print_debug("[Info] Adding Ambient Light: ")
 	var env = world_env_node.environment
 	env.background_mode = Environment.BG_COLOR
 	if "color" in meta:
@@ -289,20 +302,30 @@ func create_ambient_light_node(meta : Dictionary) -> Node3D:
 func set_background_colour(color : String) -> void:
 	if world_env_node == null:
 		create_world_environment_node()
-	print_debug("Adding background colour: " + color)
+	print_debug("[Info] Adding background colour: " + color)
 	var env = world_env_node.environment
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color.html(color)
 	world_env_node.environment = env
 
 func create_comment_node(meta : Dictionary) -> Node3D:
+	print_debug("[Info] Adding comment")
 	var node = create_iiif_node(Label3D.new(), meta)
+	var body = null
 	if "bodyValue" in meta:
-		node.text = meta["bodyValue"]
-	elif meta["body"] is Dictionary:
-		node.text = meta["body"]["value"]	
+		body = meta["bodyValue"]
+	elif "body" in meta:
+		body = meta["body"]	
 	else:
-		print("Annotation bodyValue is of unknown type")
+		print("[Error] Comment Annotation is of unknown structure")
+	
+
+	if body is Dictionary:
+		node.text = body["value"]	
+	elif body is String:
+		node.text = body	
+	else:
+		print("[Error] Comment Annotation is of unknown type")
 	return node
 
 #
@@ -314,7 +337,7 @@ func add_position_to_node(node : Node, meta : Dictionary) -> void:
 		# TODO select position space based on object identified as source
 		for selector in meta["target"]["selector"]:
 			if selector["type"] == "PointSelector":
-				print_debug("Positioning")
+				print_debug("[Info] Positioning")
 				if node is Node2D:
 					node.position = Vector2(selector["x"], selector["y"])
 				if node is Node3D:
@@ -327,18 +350,18 @@ func add_transform_to_node(node : Node, meta : Dictionary) -> void:
 		for transform in meta["body"]["transform"]:
 			var xyz = Vector3(transform["x"], transform["y"], transform["z"])
 			if transform["type"] == "RotateTransform":
-				print_debug("Rotating")
+				print_debug("[Info] Rotating")
 				if node is Node3D:
 					node.rotation_order = EULER_ORDER_XYZ
 					node.rotation_degrees = xyz
 					print_debug(xyz)
 			elif transform["type"] == "ScaleTransform":
-				print_debug("Scaling")
+				print_debug("[Info] Scaling")
 				if node is Node3D:
 					node.scale = xyz
 					print_debug(xyz)
 			elif transform["type"] == "TranslateTransform":
-				print_debug("Translate")
+				print_debug("[Info] Translate")
 				if node is Node3D:
 					node.translate(xyz) 
 					print_debug(xyz)
@@ -353,10 +376,14 @@ func add_look_at_to_node(node, meta : Dictionary) -> void:
 			point = Vector3(ensure_float(lookAt["x"]), ensure_float(lookAt["y"]), ensure_float(lookAt["z"]))
 		elif lookAt["type"] == "Annotation":
 			var target = find_node_by_id_and_type(lookAt["id"], lookAt["type"])
-			if target is Node3D:
+			
+			if target is Camera3D:
+				target.look_at(target.position)
+			elif target is Node3D:
 				point = target.position
+				
 			if target == null:
-				print_debug("**** LOOKAT TARGET NOT FOUND *****")
-		print_debug("*** Adding lookAt")
+				print_debug("[Error] LookAt target not found")
+		print_debug("[Info] Adding LookAt")
 		print_debug(point)
 		node.look_at_from_position(node.position, point)
