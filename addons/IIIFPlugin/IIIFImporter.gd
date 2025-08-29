@@ -254,7 +254,11 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 			child_node = parse_items(child_node, item["items"])
 		if "annotations" in item:
 			child_node = parse_items(child_node, item["annotations"])	
-	
+		if "target" in item:
+			if "scope" in item["target"]:
+				child_node = parse_items(child_node, [item["target"]["scope"]])
+			if "items" in item["target"]:
+				child_node = parse_items(child_node, item["target"]["items"])				
 			
 		# Do this another way?!	
 		#if "target" in item:
@@ -285,12 +289,3 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 				#scope_node.set_owner(root_node)
 				#parse_items(scope_node, [item["target"]["scope"]["target"]])		
 	return parent_node
-		
-
-
-	
-
-	
-
-	
-	
