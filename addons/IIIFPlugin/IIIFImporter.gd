@@ -230,24 +230,12 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 			child_node = node_maker.create_annotation_node(item)
 		elif item["type"] == "Choice":
 			child_node = node_maker.create_choice(item)
-		elif item["type"] == "SpecificResource":
-			child_node = node_maker.create_specific_resource(item)
 		else:
 			print_debug("[Error] Unknown node type: " + item["type"])
-			child_node = Node.new()
+			child_node = node_maker.create_iiif_node(Node.new(), item)
 		
-		# If a selector, find the right node to attach to
-		if item["type"] == "SpecificResource":
-			var target = node_maker.find_node_by_id_and_type(item["source"][0]["id"], item["source"][0]["type"])
-			if target != null:
-				print_debug("SpecificResource, target found")
-				target.add_child(child_node)
-			else:
-				print_debug("SpecificResource, no target found")
-				parent_node.add_child(child_node)
-		else:
-			# otherwise add to parent
-			parent_node.add_child(child_node)
+		# otherwise add to parent
+		parent_node.add_child(child_node)
 		child_node.set_owner(root_node)
 		for subnode in child_node.get_children():
 			subnode.set_owner(root_node)
@@ -266,11 +254,14 @@ func parse_items(parent_node : Node, items : Array) -> Node3D:
 			child_node = parse_items(child_node, item["items"])
 		if "annotations" in item:
 			child_node = parse_items(child_node, item["annotations"])	
-		if "target" in item:
-			child_node = parse_items(child_node, [item["target"]])	
+	
+			
+		# Do this another way?!	
+		#if "target" in item:
+		#	child_node = parse_items(child_node, [item["target"]])	
 		# Not sure if this should be here
-		if "scope" in item:
-			child_node = parse_items(child_node, [item["scope"]])	
+		#if "scope" in item:
+		#	child_node = parse_items(child_node, [item["scope"]])	
 		
 		# if 	"target" in item and item["target"] is Dictionary and item["target"]["type"] == "SpecificResource":
 		#	# ignore for now see line 375

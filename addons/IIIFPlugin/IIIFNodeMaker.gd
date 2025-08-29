@@ -108,12 +108,7 @@ func create_scene(meta : Dictionary) -> Node3D:
 func create_choice(meta : Dictionary) -> Node:
 	var node = create_iiif_node(Node.new(), meta)
 	return node
-
-# Creates a Choice node
-func create_specific_resource(meta : Dictionary) -> Node:
-	var node = create_iiif_node(Node.new(), meta)
-	return node
-		
+	
 #
 # ANNOTATIONS
 #
@@ -125,23 +120,20 @@ func create_annotation_node(item : Dictionary):
 	# TODO make sure sub node creation all works in the same way
 	
 	var node : Node3D = create_iiif_node(Node3D.new(), item)
+	
 	if "body" in item:
-		if item["body"]["type"] == "Model":
-			node.add_child(create_model_node(item["body"]["id"], item["body"]))
-		elif "source" in item["body"]:
-			for source in item["body"]["source"]:
-				if source["type"] == "Model":
-					node.add_child(create_model_node(source["id"], source))
-				elif source["type"].containsn("Light"):
-					node.add_child(create_light_node(source))
-		#elif item["body"]["type"] == "Image":
-		#	var asset : Sprite2D = _get_imported_image(item["body"]["id"])
-		#	add_meta_to_node(asset, item["body"])	
-		#	node.add_child(asset)
-		elif item["body"]["type"].containsn("Light"):
-			node.add_child(create_light_node(item["body"]))
-		elif item["body"]["type"].containsn("Camera"):
-			node.add_child(create_camera_node(item["body"])) 
+		# Handle explicit resources and ones put under a source
+		var bodies = [item["body"]]
+		if "source" in item["body"]:
+			bodies = item["body"]["source"]
+			
+		for body in bodies:
+			if body["type"] == "Model":
+				node.add_child(create_model_node(body["id"], body))
+			elif body["type"].containsn("Light"):
+				node.add_child(create_light_node(body))
+			elif body["type"].containsn("Camera"):
+				node.add_child(create_camera_node(body)) 
 	
 	# Annotations with comments
 	if "commenting" in item["motivation"]:
@@ -154,8 +146,8 @@ func create_annotation_node(item : Dictionary):
 #
 
 # Creates a child node with IIIF metadata for a model
-func create_model_node(id : String, body : Dictionary) -> Node3D:
-	var asset : Node3D = create_iiif_node( _get_imported_asset(id), body )	
+func create_model_node(id : String, meta : Dictionary) -> Node3D:
+	var asset : Node3D = create_iiif_node( _get_imported_asset(id), meta )	
 	if first_model == null:
 		first_model = asset
 	return asset
@@ -206,44 +198,44 @@ func create_camera_looking_at(root : Node, target : Node3D) -> void:
 	is_camera_created = true
 
 
-func create_camera_node(cameraBodySection : Dictionary) -> Camera3D:
+func create_camera_node(meta : Dictionary) -> Camera3D:
 	print_debug("[Info] Making Camera Node")
-	var camera : Camera3D = create_iiif_node(Camera3D.new(), cameraBodySection)
+	var camera : Camera3D = create_iiif_node(Camera3D.new(), meta)
 	# Properties for camera
-	var fov : float = prop_or_default(cameraBodySection, "fov", 75.0) 
-	var near : float = prop_or_default(cameraBodySection, "near", 0.05)
-	var far : float = prop_or_default(cameraBodySection, "far", 4000)
-	var size : float = prop_or_default(cameraBodySection, "size", 1)
+	var fov : float = prop_or_default(meta, "fov", 75.0) 
+	var near : float = prop_or_default(meta, "near", 0.05)
+	var far : float = prop_or_default(meta, "far", 4000)
+	var size : float = prop_or_default(meta, "size", 1)
 	
-	if cameraBodySection["type"] == "PerspectiveCamera":
+	if meta["type"] == "PerspectiveCamera":
 		camera.set_perspective(fov, near, far)
 		
-	elif cameraBodySection["type"] == "OrthographicCamera":
+	elif meta["type"] == "OrthographicCamera":
 		camera.set_orthogonal(size, near, far)
 	
 	else:
 		print("Camera is of an unknown type")
-	camera.name = name_iiif_node(cameraBodySection)
+	camera.name = name_iiif_node(meta)
 	
 	is_camera_created = true
 	return camera
 
 
 # Set up lighting nodes
-func create_light_node(lightBodySection : Dictionary) -> Node:
+func create_light_node(meta : Dictionary) -> Node:
 	print_debug("[Info] Creating light node")
 	var node : Node = null
-	if lightBodySection["type"] == "AmbientLight":
-		node = create_ambient_light_node(lightBodySection) 
-	elif lightBodySection["type"] == "DirectionalLight":
-		node = create_iiif_node(DirectionalLight3D.new(), lightBodySection)
-	elif lightBodySection["type"] == "PointLight":
-		node = create_iiif_node(OmniLight3D.new(), lightBodySection)
-	elif lightBodySection["type"] == "SpotLight":
-		node = create_iiif_node(SpotLight3D.new(), lightBodySection)
+	if meta["type"] == "AmbientLight":
+		node = create_ambient_light_node(meta) 
+	elif meta["type"] == "DirectionalLight":
+		node = create_iiif_node(DirectionalLight3D.new(), meta)
+	elif meta["type"] == "PointLight":
+		node = create_iiif_node(OmniLight3D.new(), meta)
+	elif meta["type"] == "SpotLight":
+		node = create_iiif_node(SpotLight3D.new(), meta)
 	else:
 		print("Light is of an unknown type")
-		node = create_iiif_node(Node.new(), lightBodySection)
+		node = create_iiif_node(Node.new(), meta)
 	
 	# Common
 	
@@ -251,18 +243,18 @@ func create_light_node(lightBodySection : Dictionary) -> Node:
 	if node is not Light3D:
 		return node
 		
-	node.name = name_iiif_node(lightBodySection)
+	node.name = name_iiif_node(meta)
 			
-	if "color" in lightBodySection:
-		node.light_color = Color(lightBodySection["color"])
+	if "color" in meta:
+		node.light_color = Color(meta["color"])
 		
-	if "intensity" in lightBodySection:
-		if lightBodySection["unit"] == "relative":
-			node.light_energy = lightBodySection["unit"].to_float() * 256
-		elif lightBodySection["unit"] == "lumens":
-			node.light_intensity_lumens = lightBodySection["unit"].to_float()
-		elif lightBodySection["unit"] == "lux":
-			node.light_intensity_lux = lightBodySection["unit"].to_float()
+	if "intensity" in meta:
+		if meta["unit"] == "relative":
+			node.light_energy = meta["unit"].to_float() * 256
+		elif meta["unit"] == "lumens":
+			node.light_intensity_lumens = meta["unit"].to_float()
+		elif meta["unit"] == "lux":
+			node.light_intensity_lux = meta["unit"].to_float()
 		else:
 			print("Unknown light intensity unit")
 	
