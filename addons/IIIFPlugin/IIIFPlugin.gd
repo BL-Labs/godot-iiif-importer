@@ -5,8 +5,9 @@ var import_dock : Control
 
 func _enter_tree() -> void:
 	# Initialization of the plugin goes here.
-	add_custom_type("IIIFImporter", "IIIF", preload("res://addons/IIIFPlugin/IIIFImporter.gd"), preload("res://addons/IIIFPlugin/IIIFMetaNodeIcon.png"))
-	add_custom_type("IIIFAssetDownloader", "IIIF", preload("res://addons/IIIFPlugin/IIIFAssetDownloader.gd"), preload("res://addons/IIIFPlugin/IIIFMetaNodeIcon.png"))
+	add_custom_type("IIIFImporter", "IIIFPluginInternal", preload("res://addons/IIIFPlugin/IIIFImporter.gd"), preload("res://addons/IIIFPlugin/IIIFMetaNodeIcon.png"))
+	add_custom_type("IIIFAssetDownloader", "IIIFPluginInternal", preload("res://addons/IIIFPlugin/IIIFAssetDownloader.gd"), preload("res://addons/IIIFPlugin/IIIFMetaNodeIcon.png"))
+	add_custom_type("IIIFNodeMaker", "IIIFPluginInternal", preload("res://addons/IIIFPlugin/IIIFNodeMaker.gd"), preload("res://addons/IIIFPlugin/IIIFMetaNodeIcon.png"))
 	import_dock = preload("res://addons/IIIFPlugin/import_dock.tscn").instantiate()
 	
 	add_control_to_dock(DOCK_SLOT_LEFT_BL, import_dock)
@@ -17,6 +18,7 @@ func _exit_tree() -> void:
 
 	remove_custom_type("IIIFImporter")
 	remove_custom_type("IIIFAssetDownloader")
+	remove_custom_type("IIIFNodeMaker")
 	remove_control_from_docks(import_dock)
 
 func _on_test_clicked() -> void:
