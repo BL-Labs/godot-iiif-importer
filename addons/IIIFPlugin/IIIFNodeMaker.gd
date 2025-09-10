@@ -329,11 +329,13 @@ func add_position_to_node(node : Node, meta : Dictionary) -> void:
 		# TODO select position space based on object identified as source
 		for selector in meta["target"]["selector"]:
 			if selector["type"] == "PointSelector":
-				print_debug("[Info] Positioning")
+				print_debug("[Info] Positioning " + node.name)
 				if node is Node2D:
 					node.position = Vector2(selector["x"], selector["y"])
 				if node is Node3D:
 					node.position = Vector3(selector["x"], selector["y"], selector["z"])
+				else:
+					print_debug("[Error] Cannot position node as unknown type")
 
 # Set rotation and scaling on a 3D model 
 func add_transform_to_node(node : Node, meta : Dictionary) -> void:

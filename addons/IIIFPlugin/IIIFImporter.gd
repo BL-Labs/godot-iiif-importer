@@ -159,7 +159,7 @@ func process_iiif_json(manifest_json : Dictionary) -> void:
 # Goes through manifest and looks for assets to be downloaded		
 func import_assets_in_manifest(items : Array) -> void:
 	for item in items:
-		if item["type"] == "Annotation":
+		if item["type"] == "Annotation" and "body" in item:
 			if "source" in item["body"]:
 				for source in item["body"]["source"]:
 					add_asset(source["id"], source["type"])
